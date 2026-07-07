@@ -41,7 +41,7 @@ impl ElfDynamicEntry {
     fn from_raw(details: *const GumElfDynamicEntryDetails) -> Self {
         unsafe {
             Self {
-                tag: (*details).tag as u32,
+                tag: (*details).tag,
                 val: (*details).val,
             }
         }
