@@ -52,9 +52,7 @@ extern "C" fn enumerate_dynamic_entries_callout(
     details: *const GumElfDynamicEntryDetails,
     user_data: *mut c_void,
 ) -> gum_sys::gboolean {
-    let mut f = unsafe {
-        Box::from_raw(user_data as *mut Box<dyn FnMut(ElfDynamicEntry) -> bool>)
-    };
+    let mut f = unsafe { Box::from_raw(user_data as *mut Box<dyn FnMut(ElfDynamicEntry) -> bool>) };
     let r = f(ElfDynamicEntry::from_raw(details));
     Box::leak(f);
     r as gum_sys::gboolean
@@ -72,9 +70,7 @@ impl ElfModule {
     pub fn from_file(path: &str) -> Option<Self> {
         let path = CString::new(path).ok()?;
         let mut error: *mut gum_sys::GError = core::ptr::null_mut();
-        let ptr = unsafe {
-            gum_sys::gum_elf_module_new_from_file(path.as_ptr(), &mut error)
-        };
+        let ptr = unsafe { gum_sys::gum_elf_module_new_from_file(path.as_ptr(), &mut error) };
         if ptr.is_null() {
             None
         } else {
@@ -137,7 +133,11 @@ impl ElfModule {
         if ptr.is_null() {
             None
         } else {
-            Some(unsafe { CStr::from_ptr(ptr) }.to_string_lossy().into_owned())
+            Some(
+                unsafe { CStr::from_ptr(ptr) }
+                    .to_string_lossy()
+                    .into_owned(),
+            )
         }
     }
 
@@ -147,7 +147,11 @@ impl ElfModule {
         if ptr.is_null() {
             None
         } else {
-            Some(unsafe { CStr::from_ptr(ptr) }.to_string_lossy().into_owned())
+            Some(
+                unsafe { CStr::from_ptr(ptr) }
+                    .to_string_lossy()
+                    .into_owned(),
+            )
         }
     }
 
