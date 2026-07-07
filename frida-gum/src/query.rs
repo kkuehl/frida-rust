@@ -6,6 +6,11 @@
  */
 
 //! Runtime queries about the host CPU and memory subsystem.
+//!
+//! Note: GUM constants have platform-dependent types (i32 on Windows, u32 on Linux).
+//! The `as u32` casts are necessary on Windows but trigger clippy warnings on Linux.
+
+#![allow(clippy::unnecessary_cast)]
 
 use {
     crate::{MemoryRange, NativePointer},
