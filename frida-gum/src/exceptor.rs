@@ -5,8 +5,6 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
-#![cfg(has_exceptor_mode)]
-
 //! Exception handling and signal interception.
 //!
 //! The Exceptor allows you to intercept and handle exceptions/signals

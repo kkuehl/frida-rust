@@ -4,8 +4,6 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
-#![cfg(has_control_flow_graph)]
-
 //! Native control-flow graph construction and dominator analysis.
 //!
 //! A [`ControlFlowGraph`] models the basic blocks of a function and the edges
