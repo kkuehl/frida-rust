@@ -1,5 +1,5 @@
 /*
- * Copyright © 2025 Mimic
+ * Copyright © 2026 Kirby Kuehl
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
