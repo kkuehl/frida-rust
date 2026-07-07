@@ -16,13 +16,22 @@
 
 use frida_gum_sys::{GArray, GError, GPtrArray, gboolean, gchar, gpointer, guint};
 
-#[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "ios"))]
+#[cfg(any(target_os = "linux", target_os = "freebsd"))]
 mod sys {
     pub use frida_gum_sys::{
         _frida_g_array_free as g_array_free, _frida_g_error_free as g_error_free,
         _frida_g_free as g_free, _frida_g_ptr_array_add as g_ptr_array_add,
         _frida_g_ptr_array_free as g_ptr_array_free,
         _frida_g_ptr_array_sized_new as g_ptr_array_sized_new,
+    };
+}
+
+#[cfg(target_os = "ios")]
+mod sys {
+    pub use frida_gum_sys::{
+        _frida_g_array_free as g_array_free, _frida_g_error_free as g_error_free,
+        _frida_g_free as g_free, _frida_g_ptr_array_add as g_ptr_array_add,
+        _frida_g_ptr_array_free as g_ptr_array_free, g_ptr_array_sized_new,
     };
 }
 
