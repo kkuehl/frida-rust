@@ -30,8 +30,8 @@ mod sys {
 mod sys {
     pub use frida_gum_sys::{
         _frida_g_array_free as g_array_free, _frida_g_error_free as g_error_free,
-        _frida_g_free as g_free, _frida_g_ptr_array_add as g_ptr_array_add,
-        _frida_g_ptr_array_free as g_ptr_array_free, g_ptr_array_sized_new,
+        _frida_g_free as g_free, _frida_g_ptr_array_add as g_ptr_array_add, g_ptr_array_free,
+        g_ptr_array_sized_new,
     };
 }
 

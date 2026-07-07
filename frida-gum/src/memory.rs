@@ -39,7 +39,7 @@ impl Memory {
     pub unsafe fn read(address: NativePointer, size: usize) -> Option<Vec<u8>> {
         unsafe {
             let mut n_read: u64 = 0;
-            let buf = gum_sys::gum_memory_read(address.0, size as u64, &mut n_read);
+            let buf = gum_sys::gum_memory_read(address.0, size as gum_sys::gsize, &mut n_read);
 
             if buf.is_null() {
                 return None;
@@ -79,8 +79,8 @@ impl Memory {
         let ptr = unsafe {
             gum_sys::gum_memory_allocate(
                 core::ptr::null_mut(),
-                size as u64,
-                alignment as u64,
+                size as gum_sys::gsize,
+                alignment as gum_sys::gsize,
                 protection as u32,
             )
         };
@@ -114,14 +114,14 @@ impl Memory {
     ) -> Option<NativePointer> {
         let spec = gum_sys::GumAddressSpec {
             near_address: near.0,
-            max_distance: max_distance as u64,
+            max_distance: max_distance as gum_sys::gsize,
         };
 
         let ptr = unsafe {
             gum_sys::gum_memory_allocate_near(
                 &spec,
-                size as u64,
-                alignment as u64,
+                size as gum_sys::gsize,
+                alignment as gum_sys::gsize,
                 protection as u32,
             )
         };
@@ -142,7 +142,7 @@ impl Memory {
     /// The address must have been allocated with [`Memory::allocate()`] or
     /// [`Memory::allocate_near()`], and must not have been freed already.
     pub unsafe fn free(address: NativePointer, size: usize) -> bool {
-        unsafe { gum_sys::gum_memory_free(address.0, size as u64) != 0 }
+        unsafe { gum_sys::gum_memory_free(address.0, size as gum_sys::gsize) != 0 }
     }
 
     /// Release memory back to the system.
@@ -153,7 +153,7 @@ impl Memory {
     ///
     /// The address and size must correspond to a previously allocated region.
     pub unsafe fn release(address: NativePointer, size: usize) -> bool {
-        unsafe { gum_sys::gum_memory_release(address.0, size as u64) != 0 }
+        unsafe { gum_sys::gum_memory_release(address.0, size as gum_sys::gsize) != 0 }
     }
 
     /// Decommit memory pages.
@@ -165,7 +165,7 @@ impl Memory {
     ///
     /// The address and size must correspond to a previously allocated region.
     pub unsafe fn decommit(address: NativePointer, size: usize) -> bool {
-        unsafe { gum_sys::gum_memory_decommit(address.0, size as u64) != 0 }
+        unsafe { gum_sys::gum_memory_decommit(address.0, size as gum_sys::gsize) != 0 }
     }
 
     /// Recommit previously decommitted memory pages.
@@ -178,7 +178,9 @@ impl Memory {
         size: usize,
         protection: PageProtection,
     ) -> bool {
-        unsafe { gum_sys::gum_memory_recommit(address.0, size as u64, protection as u32) != 0 }
+        unsafe {
+            gum_sys::gum_memory_recommit(address.0, size as gum_sys::gsize, protection as u32) != 0
+        }
     }
 
     /// Discard the contents of memory pages.
@@ -190,7 +192,7 @@ impl Memory {
     ///
     /// The address and size must point to valid memory.
     pub unsafe fn discard(address: NativePointer, size: usize) -> bool {
-        unsafe { gum_sys::gum_memory_discard(address.0, size as u64) != 0 }
+        unsafe { gum_sys::gum_memory_discard(address.0, size as gum_sys::gsize) != 0 }
     }
 
     /// Query the protection flags for a memory region.
@@ -215,7 +217,7 @@ impl Memory {
     ///
     /// The address should be a valid pointer.
     pub unsafe fn is_readable(address: NativePointer, size: usize) -> bool {
-        unsafe { gum_sys::gum_memory_is_readable(address.0, size as u64) != 0 }
+        unsafe { gum_sys::gum_memory_is_readable(address.0, size as gum_sys::gsize) != 0 }
     }
 
     /// Mark a memory region as executable code.
@@ -229,7 +231,7 @@ impl Memory {
     ///
     /// The address and size must point to valid memory with appropriate permissions.
     pub unsafe fn mark_code(address: NativePointer, size: usize) -> bool {
-        unsafe { gum_sys::gum_memory_mark_code(address.0, size as u64) != 0 }
+        unsafe { gum_sys::gum_memory_mark_code(address.0, size as gum_sys::gsize) != 0 }
     }
 
     /// Change the protection of a memory region, aborting on failure.
@@ -242,7 +244,7 @@ impl Memory {
     /// caller; changing protection on memory in use elsewhere can crash the
     /// process.
     pub unsafe fn mprotect(address: NativePointer, size: usize, prot: PageProtection) {
-        unsafe { gum_sys::gum_mprotect(address.0, size as u64, prot as u32) };
+        unsafe { gum_sys::gum_mprotect(address.0, size as gum_sys::gsize, prot as u32) };
     }
 
     /// Try to change the protection of a memory region.
@@ -254,7 +256,7 @@ impl Memory {
     /// `address`/`size` must describe a region of mapped pages owned by the
     /// caller.
     pub unsafe fn try_mprotect(address: NativePointer, size: usize, prot: PageProtection) -> bool {
-        unsafe { gum_sys::gum_try_mprotect(address.0, size as u64, prot as u32) != 0 }
+        unsafe { gum_sys::gum_try_mprotect(address.0, size as gum_sys::gsize, prot as u32) != 0 }
     }
 
     /// Flush the CPU instruction cache for a region of freshly written code.
@@ -266,7 +268,7 @@ impl Memory {
     ///
     /// `address`/`size` must describe a region of mapped, executable memory.
     pub unsafe fn clear_cache(address: NativePointer, size: usize) {
-        unsafe { gum_sys::gum_clear_cache(address.0, size as u64) };
+        unsafe { gum_sys::gum_clear_cache(address.0, size as gum_sys::gsize) };
     }
 
     /// Ensure a region of code is readable, faulting it in if necessary.
@@ -275,7 +277,7 @@ impl Memory {
     ///
     /// `address`/`size` must describe a region of mapped code memory.
     pub unsafe fn ensure_code_readable(address: NativePointer, size: usize) {
-        unsafe { gum_sys::gum_ensure_code_readable(address.0, size as u64) };
+        unsafe { gum_sys::gum_ensure_code_readable(address.0, size as gum_sys::gsize) };
     }
 
     /// Atomically patch code at the specified address.
@@ -314,8 +316,12 @@ impl Memory {
             let callback = Box::new(apply);
             let user_data = Box::into_raw(callback) as *mut _;
 
-            gum_sys::gum_memory_patch_code(address.0, size as u64, Some(trampoline::<F>), user_data)
-                != 0
+            gum_sys::gum_memory_patch_code(
+                address.0,
+                size as gum_sys::gsize,
+                Some(trampoline::<F>),
+                user_data,
+            ) != 0
         }
     }
 
@@ -400,7 +406,7 @@ impl Memory {
                 ranges_raw.len() as u32,
                 values_u64.as_ptr(),
                 values_u64.len() as u32,
-                mask as u64,
+                mask as gum_sys::gsize,
             );
 
             let mut results = Vec::new();
@@ -492,7 +498,7 @@ impl Memory {
     ) -> Option<NativePointer> {
         let spec = gum_sys::GumAddressSpec {
             near_address: near.0,
-            max_distance: max_distance as u64,
+            max_distance: max_distance as gum_sys::gsize,
         };
         let ptr = unsafe { gum_sys::gum_alloc_n_pages_near(n_pages, protection as u32, &spec) };
         if ptr.is_null() {
@@ -513,7 +519,7 @@ impl Memory {
     ) -> Option<NativePointer> {
         let spec = gum_sys::GumAddressSpec {
             near_address: near.0,
-            max_distance: max_distance as u64,
+            max_distance: max_distance as gum_sys::gsize,
         };
         let ptr = unsafe { gum_sys::gum_try_alloc_n_pages_near(n_pages, protection as u32, &spec) };
         if ptr.is_null() {

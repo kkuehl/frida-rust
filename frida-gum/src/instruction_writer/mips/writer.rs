@@ -5,10 +5,10 @@
  */
 
 use {
-    crate::{instruction_writer::InstructionWriter, NativePointer},
+    crate::{NativePointer, instruction_writer::InstructionWriter},
     core::ffi::c_void,
     frida_gum_sys as gum_sys,
-    gum_sys::{mips_reg, GumArgument},
+    gum_sys::{GumArgument, mips_reg},
 };
 
 #[cfg(not(any(
@@ -49,8 +49,7 @@ impl InstructionWriter for MipsInstructionWriter {
 
     fn put_bytes(&self, bytes: &[u8]) -> bool {
         unsafe {
-            gum_sys::gum_mips_writer_put_bytes(self.writer, bytes.as_ptr(), bytes.len() as u32)
-                != 0
+            gum_sys::gum_mips_writer_put_bytes(self.writer, bytes.as_ptr(), bytes.len() as u32) != 0
         }
     }
 
@@ -209,21 +208,36 @@ impl MipsInstructionWriter {
     /// Write a load doubleword instruction (MIPS64).
     pub fn put_ld_reg_reg_offset(&self, dst_reg: mips_reg, src_reg: mips_reg, src_offset: usize) {
         unsafe {
-            gum_sys::gum_mips_writer_put_ld_reg_reg_offset(self.writer, dst_reg, src_reg, src_offset)
+            gum_sys::gum_mips_writer_put_ld_reg_reg_offset(
+                self.writer,
+                dst_reg,
+                src_reg,
+                src_offset,
+            )
         }
     }
 
     /// Write a load word instruction.
     pub fn put_lw_reg_reg_offset(&self, dst_reg: mips_reg, src_reg: mips_reg, src_offset: usize) {
         unsafe {
-            gum_sys::gum_mips_writer_put_lw_reg_reg_offset(self.writer, dst_reg, src_reg, src_offset)
+            gum_sys::gum_mips_writer_put_lw_reg_reg_offset(
+                self.writer,
+                dst_reg,
+                src_reg,
+                src_offset,
+            )
         }
     }
 
     /// Write a store word instruction.
     pub fn put_sw_reg_reg_offset(&self, src_reg: mips_reg, dst_reg: mips_reg, dst_offset: usize) {
         unsafe {
-            gum_sys::gum_mips_writer_put_sw_reg_reg_offset(self.writer, src_reg, dst_reg, dst_offset)
+            gum_sys::gum_mips_writer_put_sw_reg_reg_offset(
+                self.writer,
+                src_reg,
+                dst_reg,
+                dst_offset,
+            )
         }
     }
 
@@ -233,25 +247,17 @@ impl MipsInstructionWriter {
     }
 
     /// Write an add unsigned instruction.
-    pub fn put_addu_reg_reg_reg(
-        &self,
-        dst_reg: mips_reg,
-        left_reg: mips_reg,
-        right_reg: mips_reg,
-    ) {
+    pub fn put_addu_reg_reg_reg(&self, dst_reg: mips_reg, left_reg: mips_reg, right_reg: mips_reg) {
         unsafe {
-            gum_sys::gum_mips_writer_put_addu_reg_reg_reg(
-                self.writer,
-                dst_reg,
-                left_reg,
-                right_reg,
-            )
+            gum_sys::gum_mips_writer_put_addu_reg_reg_reg(self.writer, dst_reg, left_reg, right_reg)
         }
     }
 
     /// Write an add immediate instruction.
     pub fn put_addi_reg_reg_imm(&self, dst_reg: mips_reg, left_reg: mips_reg, imm: i32) {
-        unsafe { gum_sys::gum_mips_writer_put_addi_reg_reg_imm(self.writer, dst_reg, left_reg, imm) }
+        unsafe {
+            gum_sys::gum_mips_writer_put_addi_reg_reg_imm(self.writer, dst_reg, left_reg, imm)
+        }
     }
 
     /// Write an add immediate instruction (single register form).
