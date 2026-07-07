@@ -14,7 +14,7 @@
 //! can call a single stable name regardless of platform (mirroring the existing
 //! `_frida_g_get_*_dir` handling in [`crate::process`]).
 
-use frida_gum_sys::{gboolean, gchar, gpointer, guint, GArray, GError, GPtrArray};
+use frida_gum_sys::{GArray, GError, GPtrArray, gboolean, gchar, gpointer, guint};
 
 #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "ios"))]
 mod sys {

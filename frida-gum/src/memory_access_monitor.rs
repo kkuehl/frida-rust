@@ -132,9 +132,11 @@ impl MemoryAccessMonitor {
             details: *const gum_sys::GumMemoryAccessDetails,
             user_data: gum_sys::gpointer,
         ) {
-            let cb = &mut *(user_data as *mut Callback);
-            let details = MemoryAccessDetails::from(&*details);
-            (cb)(&details);
+            unsafe {
+                let cb = &mut *(user_data as *mut Callback);
+                let details = MemoryAccessDetails::from(&*details);
+                (cb)(&details);
+            }
         }
 
         // Frida copies the ranges array internally, so a stack-allocated Vec is fine.

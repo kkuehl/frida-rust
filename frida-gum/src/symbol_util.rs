@@ -47,7 +47,11 @@ impl SymbolUtil {
         if name_ptr.is_null() {
             None
         } else {
-            let name = unsafe { CStr::from_ptr(name_ptr.cast()).to_string_lossy().into_owned() };
+            let name = unsafe {
+                CStr::from_ptr(name_ptr.cast())
+                    .to_string_lossy()
+                    .into_owned()
+            };
             unsafe { crate::glib_compat::g_free(name_ptr as *mut c_void) };
             Some(name)
         }
