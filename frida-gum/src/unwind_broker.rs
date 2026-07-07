@@ -4,6 +4,8 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
+#![cfg(has_unwind_broker)]
+
 //! Stack-unwinding broker for dynamically generated code.
 //!
 //! The [`UnwindBroker`] is a process-wide singleton that lets unwinders make

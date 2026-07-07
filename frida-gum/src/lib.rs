@@ -106,7 +106,9 @@ pub use memory_range::*;
 mod api_resolver;
 pub use api_resolver::*;
 
+#[cfg(has_exceptor_mode)]
 mod exceptor;
+#[cfg(has_exceptor_mode)]
 pub use exceptor::*;
 
 mod code_allocator;
@@ -126,10 +128,14 @@ mod glib_compat;
 mod query;
 pub use query::*;
 
+#[cfg(has_control_flow_graph)]
 mod control_flow_graph;
+#[cfg(has_control_flow_graph)]
 pub use control_flow_graph::*;
 
+#[cfg(has_unwind_broker)]
 mod unwind_broker;
+#[cfg(has_unwind_broker)]
 pub use unwind_broker::*;
 
 mod tls;
