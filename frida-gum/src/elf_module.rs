@@ -23,7 +23,7 @@ use {
 use alloc::{boxed::Box, string::String, vec::Vec};
 
 #[cfg(feature = "std")]
-use std::{ffi::CStr, string::ToString};
+use std::ffi::CStr;
 
 #[cfg(not(feature = "std"))]
 use core::ffi::CStr;
