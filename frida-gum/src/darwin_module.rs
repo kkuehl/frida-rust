@@ -207,7 +207,7 @@ impl DarwinModule {
             gum_sys::gum_darwin_module_new_from_file(
                 path.as_ptr(),
                 gum_sys::GumCpuType_GUM_CPU_INVALID,
-                gum_sys::GumPtrauthSupport_GUM_PTRAUTH_INVALID,
+                gum_sys::_GumPtrauthSupport_GUM_PTRAUTH_INVALID,
                 0,
                 &mut error,
             )
@@ -228,7 +228,7 @@ impl DarwinModule {
                 name.as_ptr(),
                 gum_sys::GumCpuType_GUM_CPU_INVALID,
                 base_address,
-                gum_sys::GumPtrauthSupport_GUM_PTRAUTH_INVALID,
+                gum_sys::_GumPtrauthSupport_GUM_PTRAUTH_INVALID,
                 &mut error,
             )
         };
