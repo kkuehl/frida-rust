@@ -39,7 +39,7 @@ impl CodeSegment {
     /// Returns `None` if the host does not support code segments or the
     /// allocation fails.
     pub fn new(size: usize) -> Option<Self> {
-        let inner = unsafe { gum_sys::gum_code_segment_new(size as u64, ptr::null()) };
+        let inner = unsafe { gum_sys::gum_code_segment_new(size as gum_sys::gsize, ptr::null()) };
         if inner.is_null() {
             None
         } else {
@@ -52,9 +52,9 @@ impl CodeSegment {
     pub fn new_near(size: usize, near: NativePointer, max_distance: usize) -> Option<Self> {
         let spec = gum_sys::GumAddressSpec {
             near_address: near.0,
-            max_distance: max_distance as u64,
+            max_distance: max_distance as gum_sys::gsize,
         };
-        let inner = unsafe { gum_sys::gum_code_segment_new(size as u64, &spec) };
+        let inner = unsafe { gum_sys::gum_code_segment_new(size as gum_sys::gsize, &spec) };
         if inner.is_null() {
             None
         } else {
@@ -101,8 +101,8 @@ impl CodeSegment {
         unsafe {
             gum_sys::gum_code_segment_map(
                 self.inner,
-                source_offset as u64,
-                source_size as u64,
+                source_offset as gum_sys::gsize,
+                source_size as gum_sys::gsize,
                 target_address.0,
             );
         }
@@ -121,7 +121,7 @@ impl CodeSegment {
     pub unsafe fn mark(code: NativePointer, size: usize) -> Result<(), Error> {
         unsafe {
             let mut err: *mut gum_sys::GError = ptr::null_mut();
-            let ok = gum_sys::gum_code_segment_mark(code.0, size as u64, &mut err) != 0;
+            let ok = gum_sys::gum_code_segment_mark(code.0, size as gum_sys::gsize, &mut err) != 0;
             if !err.is_null() {
                 crate::glib_compat::g_error_free(err);
             }

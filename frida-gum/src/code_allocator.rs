@@ -148,7 +148,7 @@ impl CodeAllocator {
     pub fn new(slice_size: usize) -> Self {
         let mut allocator: gum_sys::GumCodeAllocator = unsafe { core::mem::zeroed() };
         unsafe {
-            gum_sys::gum_code_allocator_init(&mut allocator as *mut _, slice_size as u64);
+            gum_sys::gum_code_allocator_init(&mut allocator as *mut _, slice_size as gum_sys::gsize);
         }
         CodeAllocator { allocator }
     }
@@ -181,14 +181,14 @@ impl CodeAllocator {
     ) -> Option<CodeSlice> {
         let spec = gum_sys::GumAddressSpec {
             near_address: near.0,
-            max_distance: max_distance as u64,
+            max_distance: max_distance as gum_sys::gsize,
         };
 
         let slice = unsafe {
             gum_sys::gum_code_allocator_try_alloc_slice_near(
                 &mut self.allocator,
                 &spec,
-                alignment as u64,
+                alignment as gum_sys::gsize,
             )
         };
 
@@ -230,7 +230,7 @@ impl CodeAllocator {
     ) -> Option<CodeDeflector> {
         let spec = gum_sys::GumAddressSpec {
             near_address: caller.0,
-            max_distance: max_distance as u64,
+            max_distance: max_distance as gum_sys::gsize,
         };
 
         let deflector = unsafe {

@@ -237,7 +237,7 @@ impl ThreadOps {
                 thread_id as GumThreadId,
                 watchpoint_id,
                 address.0 as gum_sys::GumAddress,
-                size as u64,
+                size as gum_sys::gsize,
                 conditions.bits(),
                 &mut err,
             ) != 0;

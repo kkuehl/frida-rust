@@ -38,7 +38,7 @@ impl Memory {
     /// still cause crashes on some platforms.
     pub unsafe fn read(address: NativePointer, size: usize) -> Option<Vec<u8>> {
         unsafe {
-            let mut n_read: u64 = 0;
+            let mut n_read: gum_sys::gsize = 0;
             let buf = gum_sys::gum_memory_read(address.0, size as gum_sys::gsize, &mut n_read);
 
             if buf.is_null() {
@@ -62,7 +62,7 @@ impl Memory {
     /// The address must point to valid, writable memory of at least `data.len()` bytes.
     pub unsafe fn write(address: NativePointer, data: &[u8]) -> bool {
         unsafe {
-            gum_sys::gum_memory_write(address.0, data.as_ptr() as *const _, data.len() as u64) != 0
+            gum_sys::gum_memory_write(address.0, data.as_ptr() as *const _, data.len() as gum_sys::gsize) != 0
         }
     }
 
@@ -399,13 +399,13 @@ impl Memory {
             let ranges_raw: Vec<gum_sys::GumMemoryRange> =
                 ranges.iter().map(|r| r.memory_range).collect();
 
-            let values_u64: Vec<u64> = values.iter().map(|&v| v as u64).collect();
+            let values_gsize: Vec<gum_sys::gsize> = values.iter().map(|&v| v as gum_sys::gsize).collect();
 
             let result_array = gum_sys::gum_memory_find_pointers(
                 ranges_raw.as_ptr(),
                 ranges_raw.len() as u32,
-                values_u64.as_ptr(),
-                values_u64.len() as u32,
+                values_gsize.as_ptr(),
+                values_gsize.len() as u32,
                 mask as gum_sys::gsize,
             );
 
