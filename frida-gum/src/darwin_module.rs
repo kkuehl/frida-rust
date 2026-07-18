@@ -226,11 +226,6 @@ impl DarwinModule {
         }
     }
 
-    // NOTE: Accessor functions (get_name, get_uuid, get_pointer_size, get_base_address,
-    // get_preferred_address) do not exist in Frida 17.16.1. These need to be implemented
-    // by accessing the underlying module image properties or waiting for upstream Frida
-    // to expose these APIs.
-
     /// Enumerate segments in this module.
     pub fn segments(&self) -> Vec<DarwinSegment> {
         let mut result = Vec::new();

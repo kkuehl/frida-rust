@@ -431,7 +431,7 @@ impl Interceptor {
     /// # Arguments
     ///
     /// * `scratch_register` - Register to use for temporary operations (-1 for auto)
-    /// * `scenario` - Interceptor scenario (DEFAULT, EXCLUSIVE, etc.)
+    /// * `scenario` - Interceptor scenario (DEFAULT, ONLINE, OFFLINE)
     /// * `relocation_policy` - Code relocation strategy
     pub fn set_default_options(
         &mut self,
