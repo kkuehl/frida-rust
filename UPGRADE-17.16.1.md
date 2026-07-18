@@ -32,19 +32,33 @@ These user-space page allocation APIs were removed from Frida GUM. Use `gum_memo
 
 **Commit**: `feat: add kernel API support`
 
+#### 3. New x86_64 AVX-512 Instructions
+- `kmovq` - k-register mask operations
+- `vextracti64x4` - extract 256 bits from 512-bit ZMM
+- `vinserti64x4` - insert 256 bits into 512-bit ZMM  
+- `vmovdqu64` - unaligned 512-bit move
+
+**Commit**: `feat: add AVX-512 x86_64 instructions and ARM64 PAC/MOVK`
+
+#### 4. New ARM64 Instructions
+- `movk` - move with keep (build 64-bit constants)
+- `pacia` - Pointer Authentication Code (ARMv8.3-A PAC)
+
+**Commit**: `feat: add AVX-512 x86_64 instructions and ARM64 PAC/MOVK`
+
 ### API Coverage Analysis
 
-**Overall**: ~50% of Frida 17.16.1 GUM API (up from ~40%)
+**Overall**: ~52% of Frida 17.16.1 GUM API (up from ~40%)
 
 **By Category**:
 - ✅ **Darwin module**: 100% (NEW)
 - ✅ **Kernel**: 100% (NEW)
 - ✅ **Cloak**: 100% (file descriptors already implemented)
-- ✅ **x86_64 Writer**: 88% (105/119 instructions)
-- ⚠️ **ARM64 Writer**: 30% (21/71 instructions)
+- ✅ **x86_64 Writer**: 92% (111/119 instructions, +6 AVX-512 NEW)
+- ⚠️ **ARM64 Writer**: 32% (23/71 instructions, +2 NEW)
 - ⚠️ **ARM Writer**: 25% (basic only)
 - ⚠️ **MIPS Writer**: 20% (basic only)
-- ✅ **Memory**: 85% (core ops complete, missing new allocate variants)
+- ✅ **Memory**: 100% (allocate/allocate_near already existed)
 - ✅ **Process**: 90% (core complete)
 - ✅ **Interceptor**: 85% (attach/replace/detach complete)
 - ✅ **Stalker**: 70% (core complete, advanced events partial)
@@ -53,19 +67,9 @@ These user-space page allocation APIs were removed from Frida GUM. Use `gum_memo
 
 #### High Priority (should be added)
 
-**Memory Operations**:
-- `gum_memory_allocate` / `gum_memory_allocate_near` (replacements for removed page APIs)
-
-**x86_64 SIMD Instructions** (new in 17.16.1):
-- `gum_x86_writer_put_kmovq_*` (AVX-512 mask operations)
-- `gum_x86_writer_put_vextracti64x4_*` (AVX-512 extract)
-- `gum_x86_writer_put_vinserti64x4_*` (AVX-512 insert)
-- `gum_x86_writer_put_vmovdqu64_*` (AVX-512 move)
-
-**ARM64 Instructions** (50 missing):
-- Pointer Authentication (PAC): `gum_arm64_writer_put_pacia_reg_reg` (new in 17.16.1)
-- MOVK instruction: `gum_arm64_writer_put_movk_reg_imm` (new in 17.16.1)
-- ~45 other ARM64 instructions (load/store, arithmetic, branches, etc.)
+**ARM64 Instructions** (~48 missing):
+- ~48 other ARM64 instructions (load/store, arithmetic, branches, SIMD, etc.)
+- Critical for iOS/macOS instrumentation parity
 
 #### Medium Priority
 
@@ -134,12 +138,13 @@ All changes build successfully on Windows with Frida 17.16.1 devkits.
 2. ✅ Remove deprecated page allocation APIs
 3. ✅ Add Darwin module support
 4. ✅ Add Kernel APIs
-5. ⏭️ Add missing ARM64 instructions (50 remaining)
-6. ⏭️ Add new memory allocation APIs
-7. ⏭️ Add AVX-512 x86_64 instructions
-8. ⏭️ Verify/complete Backtracer and SymbolUtil
-9. ⏭️ Run full test suite on all platforms
-10. ⏭️ Merge to main
+5. ✅ Add new memory allocation APIs (already existed)
+6. ✅ Add AVX-512 x86_64 instructions
+7. ✅ Add ARM64 PAC/MOVK instructions
+8. ⏭️ Add remaining ARM64 instructions (~48 remaining)
+9. ⏭️ Verify/complete Backtracer and SymbolUtil
+10. ⏭️ Run full test suite on all platforms
+11. ⏭️ Merge to main
 
 ---
 
