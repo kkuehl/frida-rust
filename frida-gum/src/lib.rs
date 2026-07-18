@@ -83,6 +83,11 @@ pub mod elf_module;
 mod module_map;
 pub use module_map::*;
 
+#[cfg(target_vendor = "apple")]
+mod darwin_module;
+#[cfg(target_vendor = "apple")]
+pub use darwin_module::*;
+
 mod process;
 pub use process::*;
 
