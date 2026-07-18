@@ -445,6 +445,7 @@ impl X86InstructionWriter {
     #[allow(clippy::useless_conversion)]
     pub fn put_call_address_with_arguments(&self, address: u64, arguments: &[Argument]) -> bool {
         unsafe {
+            #[cfg(target_os = "windows")]
             let arguments: Vec<GumArgument> = arguments
                 .iter()
                 .map(|argument| match argument {
@@ -461,13 +462,42 @@ impl X86InstructionWriter {
                 })
                 .collect();
 
-            gum_sys::gum_x86_writer_put_call_address_with_arguments_array(
+            #[cfg(not(target_os = "windows"))]
+            let arguments: Vec<GumArgument> = arguments
+                .iter()
+                .map(|argument| match argument {
+                    Argument::Register(register) => GumArgument {
+                        type_: gum_sys::_GumArgType_GUM_ARG_REGISTER,
+                        value: gum_sys::_GumArgument__bindgen_ty_1 {
+                            reg: *register as i32,
+                        },
+                    },
+                    Argument::Address(address) => GumArgument {
+                        type_: gum_sys::_GumArgType_GUM_ARG_ADDRESS,
+                        value: gum_sys::_GumArgument__bindgen_ty_1 { address: *address },
+                    },
+                })
+                .collect();
+
+            #[cfg(target_os = "windows")]
+            let result = gum_sys::gum_x86_writer_put_call_address_with_arguments_array(
                 self.writer,
                 gum_sys::_GumCallingConvention_GUM_CALL_CAPI as u32,
                 address,
                 arguments.len() as u32,
                 arguments.as_ptr(),
-            ) != 0
+            ) != 0;
+
+            #[cfg(not(target_os = "windows"))]
+            let result = gum_sys::gum_x86_writer_put_call_address_with_arguments_array(
+                self.writer,
+                gum_sys::_GumCallingConvention_GUM_CALL_CAPI,
+                address,
+                arguments.len() as u32,
+                arguments.as_ptr(),
+            ) != 0;
+
+            result
         }
     }
 
@@ -478,6 +508,7 @@ impl X86InstructionWriter {
         arguments: &[Argument],
     ) -> bool {
         unsafe {
+            #[cfg(target_os = "windows")]
             let arguments: Vec<GumArgument> = arguments
                 .iter()
                 .map(|argument| match argument {
@@ -494,15 +525,42 @@ impl X86InstructionWriter {
                 })
                 .collect();
 
-            gum_sys::gum_x86_writer_put_call_address_with_aligned_arguments_array(
+            #[cfg(not(target_os = "windows"))]
+            let arguments: Vec<GumArgument> = arguments
+                .iter()
+                .map(|argument| match argument {
+                    Argument::Register(register) => GumArgument {
+                        type_: gum_sys::_GumArgType_GUM_ARG_REGISTER,
+                        value: gum_sys::_GumArgument__bindgen_ty_1 {
+                            reg: *register as i32,
+                        },
+                    },
+                    Argument::Address(address) => GumArgument {
+                        type_: gum_sys::_GumArgType_GUM_ARG_ADDRESS,
+                        value: gum_sys::_GumArgument__bindgen_ty_1 { address: *address },
+                    },
+                })
+                .collect();
+
+            #[cfg(target_os = "windows")]
+            let result = gum_sys::gum_x86_writer_put_call_address_with_aligned_arguments_array(
                 self.writer,
-                gum_sys::_GumCallingConvention_GUM_CALL_CAPI
-                    .try_into()
-                    .unwrap(),
+                gum_sys::_GumCallingConvention_GUM_CALL_CAPI as u32,
                 address,
                 arguments.len() as u32,
                 arguments.as_ptr(),
-            ) != 0
+            ) != 0;
+
+            #[cfg(not(target_os = "windows"))]
+            let result = gum_sys::gum_x86_writer_put_call_address_with_aligned_arguments_array(
+                self.writer,
+                gum_sys::_GumCallingConvention_GUM_CALL_CAPI,
+                address,
+                arguments.len() as u32,
+                arguments.as_ptr(),
+            ) != 0;
+
+            result
         }
     }
 
@@ -662,15 +720,25 @@ impl X86InstructionWriter {
     pub fn put_call_reg_with_arguments(&self, reg: X86Register, arguments: &[Argument]) -> bool {
         let gum_arguments = Self::convert_arguments(arguments);
         unsafe {
-            gum_sys::gum_x86_writer_put_call_reg_with_arguments(
+            #[cfg(target_os = "windows")]
+            let result = gum_sys::gum_x86_writer_put_call_reg_with_arguments(
                 self.writer,
-                gum_sys::_GumCallingConvention_GUM_CALL_CAPI
-                    .try_into()
-                    .unwrap(),
+                gum_sys::_GumCallingConvention_GUM_CALL_CAPI as u32,
                 reg as u32,
                 gum_arguments.len() as u32,
                 gum_arguments.as_ptr(),
-            ) != 0
+            ) != 0;
+
+            #[cfg(not(target_os = "windows"))]
+            let result = gum_sys::gum_x86_writer_put_call_reg_with_arguments(
+                self.writer,
+                gum_sys::_GumCallingConvention_GUM_CALL_CAPI,
+                reg as u32,
+                gum_arguments.len() as u32,
+                gum_arguments.as_ptr(),
+            ) != 0;
+
+            result
         }
     }
 
@@ -729,16 +797,27 @@ impl X86InstructionWriter {
     ) -> bool {
         let gum_arguments = Self::convert_arguments(arguments);
         unsafe {
-            gum_sys::gum_x86_writer_put_call_reg_offset_ptr_with_arguments(
+            #[cfg(target_os = "windows")]
+            let result = gum_sys::gum_x86_writer_put_call_reg_offset_ptr_with_arguments(
                 self.writer,
-                gum_sys::_GumCallingConvention_GUM_CALL_CAPI
-                    .try_into()
-                    .unwrap(),
+                gum_sys::_GumCallingConvention_GUM_CALL_CAPI as u32,
                 reg as u32,
                 offset as gssize,
                 gum_arguments.len() as u32,
                 gum_arguments.as_ptr(),
-            ) != 0
+            ) != 0;
+
+            #[cfg(not(target_os = "windows"))]
+            let result = gum_sys::gum_x86_writer_put_call_reg_offset_ptr_with_arguments(
+                self.writer,
+                gum_sys::_GumCallingConvention_GUM_CALL_CAPI,
+                reg as u32,
+                offset as gssize,
+                gum_arguments.len() as u32,
+                gum_arguments.as_ptr(),
+            ) != 0;
+
+            result
         }
     }
 
@@ -776,16 +855,27 @@ impl X86InstructionWriter {
     ) -> bool {
         let gum_arguments = Self::convert_arguments(arguments);
         unsafe {
-            gum_sys::gum_x86_writer_put_call_reg_offset_ptr_with_aligned_arguments(
+            #[cfg(target_os = "windows")]
+            let result = gum_sys::gum_x86_writer_put_call_reg_offset_ptr_with_aligned_arguments(
                 self.writer,
-                gum_sys::_GumCallingConvention_GUM_CALL_CAPI
-                    .try_into()
-                    .unwrap(),
+                gum_sys::_GumCallingConvention_GUM_CALL_CAPI as u32,
                 reg as u32,
                 offset as gssize,
                 gum_arguments.len() as u32,
                 gum_arguments.as_ptr(),
-            ) != 0
+            ) != 0;
+
+            #[cfg(not(target_os = "windows"))]
+            let result = gum_sys::gum_x86_writer_put_call_reg_offset_ptr_with_aligned_arguments(
+                self.writer,
+                gum_sys::_GumCallingConvention_GUM_CALL_CAPI,
+                reg as u32,
+                offset as gssize,
+                gum_arguments.len() as u32,
+                gum_arguments.as_ptr(),
+            ) != 0;
+
+            result
         }
     }
 
@@ -822,15 +912,25 @@ impl X86InstructionWriter {
     ) -> bool {
         let gum_arguments = Self::convert_arguments(arguments);
         unsafe {
-            gum_sys::gum_x86_writer_put_call_reg_with_aligned_arguments(
+            #[cfg(target_os = "windows")]
+            let result = gum_sys::gum_x86_writer_put_call_reg_with_aligned_arguments(
                 self.writer,
-                gum_sys::_GumCallingConvention_GUM_CALL_CAPI
-                    .try_into()
-                    .unwrap(),
+                gum_sys::_GumCallingConvention_GUM_CALL_CAPI as u32,
                 reg as u32,
                 gum_arguments.len() as u32,
                 gum_arguments.as_ptr(),
-            ) != 0
+            ) != 0;
+
+            #[cfg(not(target_os = "windows"))]
+            let result = gum_sys::gum_x86_writer_put_call_reg_with_aligned_arguments(
+                self.writer,
+                gum_sys::_GumCallingConvention_GUM_CALL_CAPI,
+                reg as u32,
+                gum_arguments.len() as u32,
+                gum_arguments.as_ptr(),
+            ) != 0;
+
+            result
         }
     }
 
@@ -1309,7 +1409,8 @@ impl X86InstructionWriter {
 
     /// Helper to convert Argument slice to GumArgument Vec.
     fn convert_arguments(arguments: &[Argument]) -> Vec<GumArgument> {
-        arguments
+        #[cfg(target_os = "windows")]
+        return arguments
             .iter()
             .map(|arg| match arg {
                 Argument::Register(reg) => GumArgument {
@@ -1321,7 +1422,22 @@ impl X86InstructionWriter {
                     value: gum_sys::_GumArgument__bindgen_ty_1 { address: *addr },
                 },
             })
-            .collect()
+            .collect();
+
+        #[cfg(not(target_os = "windows"))]
+        return arguments
+            .iter()
+            .map(|arg| match arg {
+                Argument::Register(reg) => GumArgument {
+                    type_: gum_sys::_GumArgType_GUM_ARG_REGISTER,
+                    value: gum_sys::_GumArgument__bindgen_ty_1 { reg: *reg as i32 },
+                },
+                Argument::Address(addr) => GumArgument {
+                    type_: gum_sys::_GumArgType_GUM_ARG_ADDRESS,
+                    value: gum_sys::_GumArgument__bindgen_ty_1 { address: *addr },
+                },
+            })
+            .collect();
     }
 }
 
