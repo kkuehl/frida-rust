@@ -7,7 +7,7 @@
 //! Cross-platform GLib symbol shims.
 //!
 //! Frida's static devkit exposes GLib helpers under their bare `g_*` names on
-//! Windows and macOS, but under a `_frida_g_*` prefix on the Linux/FreeBSD/iOS
+//! Windows, macOS, and iOS, but under a `_frida_g_*` prefix on the Linux/FreeBSD
 //! devkits (to avoid clashing with a system GLib). `frida-gum-sys` therefore
 //! only generates bindings for whichever name the current target's devkit
 //! provides. This module papers over that difference so the rest of the crate
@@ -26,16 +26,7 @@ mod sys {
     };
 }
 
-#[cfg(target_os = "ios")]
-mod sys {
-    pub use frida_gum_sys::{
-        _frida_g_array_free as g_array_free, _frida_g_error_free as g_error_free,
-        _frida_g_free as g_free, _frida_g_ptr_array_add as g_ptr_array_add, g_ptr_array_free,
-        g_ptr_array_sized_new,
-    };
-}
-
-#[cfg(not(any(target_os = "linux", target_os = "freebsd", target_os = "ios")))]
+#[cfg(not(any(target_os = "linux", target_os = "freebsd")))]
 mod sys {
     pub use frida_gum_sys::{
         g_array_free, g_error_free, g_free, g_ptr_array_add, g_ptr_array_free,

@@ -83,9 +83,9 @@ pub mod elf_module;
 mod module_map;
 pub use module_map::*;
 
-#[cfg(target_vendor = "apple")]
+#[cfg(target_os = "macos")]
 mod darwin_module;
-#[cfg(target_vendor = "apple")]
+#[cfg(target_os = "macos")]
 pub use darwin_module::*;
 
 mod process;

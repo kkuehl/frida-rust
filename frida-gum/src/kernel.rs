@@ -10,7 +10,7 @@
 //! Availability can be checked with [`Kernel::api_is_available`].
 
 use {
-    crate::{MemoryRange, NativePointer, PageProtection},
+    crate::{glib_compat::g_free, MemoryRange, NativePointer, PageProtection},
     core::ffi::c_void,
     frida_gum_sys as gum_sys,
 };
@@ -192,7 +192,7 @@ impl Kernel {
             unsafe {
                 core::ptr::copy_nonoverlapping(ptr, buf.as_mut_ptr(), n_read);
                 buf.set_len(n_read);
-                gum_sys::g_free(ptr as gum_sys::gpointer);
+                g_free(ptr as gum_sys::gpointer);
             }
             Some(buf)
         }

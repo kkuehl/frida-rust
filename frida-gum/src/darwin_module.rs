@@ -6,9 +6,9 @@
 
 //! Darwin/Mach-O module inspection — enumerate sections, symbols, exports, imports, binds, rebases.
 //!
-//! Added in Frida 17.x. Only available on Darwin platforms (macOS, iOS, tvOS, watchOS).
+//! Added in Frida 17.16.0. Only available on macOS (Darwin module API not available on iOS/tvOS/watchOS).
 
-#![cfg(target_vendor = "apple")]
+#![cfg(target_os = "macos")]
 
 use {
     core::ffi::c_void,
@@ -226,40 +226,10 @@ impl DarwinModule {
         }
     }
 
-    /// Get the module name.
-    pub fn name(&self) -> String {
-        let ptr = unsafe { gum_sys::gum_darwin_module_get_name(self.inner) };
-        unsafe { CStr::from_ptr(ptr) }
-            .to_string_lossy()
-            .into_owned()
-    }
-
-    /// Get the module's UUID (as a byte array).
-    pub fn uuid(&self) -> Option<[u8; 16]> {
-        let ptr = unsafe { gum_sys::gum_darwin_module_get_uuid(self.inner) };
-        if ptr.is_null() {
-            None
-        } else {
-            let mut uuid = [0u8; 16];
-            unsafe { core::ptr::copy_nonoverlapping(ptr, uuid.as_mut_ptr(), 16) };
-            Some(uuid)
-        }
-    }
-
-    /// Pointer size of this Mach-O binary (4 for 32-bit, 8 for 64-bit).
-    pub fn pointer_size(&self) -> u32 {
-        unsafe { gum_sys::gum_darwin_module_get_pointer_size(self.inner) }
-    }
-
-    /// Base address of this module.
-    pub fn base_address(&self) -> u64 {
-        unsafe { gum_sys::gum_darwin_module_get_base_address(self.inner) }
-    }
-
-    /// Preferred (link-time) address of this module.
-    pub fn preferred_address(&self) -> u64 {
-        unsafe { gum_sys::gum_darwin_module_get_preferred_address(self.inner) }
-    }
+    // NOTE: Accessor functions (get_name, get_uuid, get_pointer_size, get_base_address,
+    // get_preferred_address) do not exist in Frida 17.16.1. These need to be implemented
+    // by accessing the underlying module image properties or waiting for upstream Frida
+    // to expose these APIs.
 
     /// Enumerate segments in this module.
     pub fn segments(&self) -> Vec<DarwinSegment> {

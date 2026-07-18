@@ -165,6 +165,12 @@ jobs:
           profile: minimal
           toolchain: nightly
           override: true
+      - name: Download FRIDA
+        run: |
+          export FRIDA_VERSION=$(cat FRIDA_VERSION)
+          cd frida-gum-sys && wget https://github.com/frida/frida/releases/download/$FRIDA_VERSION/frida-gum-devkit-$FRIDA_VERSION-linux-x86_64.tar.xz -O frida-gum.tar.xz && tar xJvf frida-gum.tar.xz
+          cd ..
+          cd frida-sys && wget https://github.com/frida/frida/releases/download/$FRIDA_VERSION/frida-core-devkit-$FRIDA_VERSION-linux-x86_64.tar.xz -O frida-core.tar.xz && tar xJvf frida-core.tar.xz
       - name: Build Gum documentation
         run: |
           cd frida-gum
