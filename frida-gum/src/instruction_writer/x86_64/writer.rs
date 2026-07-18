@@ -1175,6 +1175,128 @@ impl X86InstructionWriter {
         }
     }
 
+    /// Insert a `kmovq` from k-register to register+offset pointer (AVX-512).
+    ///
+    /// Added in Frida 17.16.1.
+    pub fn put_kmovq_kreg_reg_offset_ptr(
+        &self,
+        kreg: u32,
+        reg: X86Register,
+        offset: isize,
+    ) -> bool {
+        unsafe {
+            gum_sys::gum_x86_writer_put_kmovq_kreg_reg_offset_ptr(
+                self.writer,
+                kreg,
+                reg as u32,
+                offset as gum_sys::gssize,
+            ) != 0
+        }
+    }
+
+    /// Insert a `kmovq` from register+offset pointer to k-register (AVX-512).
+    ///
+    /// Added in Frida 17.16.1.
+    pub fn put_kmovq_reg_offset_ptr_kreg(
+        &self,
+        reg: X86Register,
+        offset: isize,
+        kreg: u32,
+    ) -> bool {
+        unsafe {
+            gum_sys::gum_x86_writer_put_kmovq_reg_offset_ptr_kreg(
+                self.writer,
+                reg as u32,
+                offset as gum_sys::gssize,
+                kreg,
+            ) != 0
+        }
+    }
+
+    /// Insert a `vextracti64x4` from ZMM to register+offset pointer (AVX-512).
+    ///
+    /// Extracts 256 bits from a 512-bit ZMM register.
+    /// Added in Frida 17.16.1.
+    pub fn put_vextracti64x4_reg_offset_ptr_zmm(
+        &self,
+        reg: X86Register,
+        offset: isize,
+        zmm: u32,
+        imm: u8,
+    ) -> bool {
+        unsafe {
+            gum_sys::gum_x86_writer_put_vextracti64x4_reg_offset_ptr_zmm(
+                self.writer,
+                reg as u32,
+                offset as gum_sys::gssize,
+                zmm,
+                imm,
+            ) != 0
+        }
+    }
+
+    /// Insert a `vinserti64x4` from register+offset pointer to ZMM (AVX-512).
+    ///
+    /// Inserts 256 bits into a 512-bit ZMM register.
+    /// Added in Frida 17.16.1.
+    pub fn put_vinserti64x4_zmm_reg_offset_ptr(
+        &self,
+        zmm: u32,
+        reg: X86Register,
+        offset: isize,
+        imm: u8,
+    ) -> bool {
+        unsafe {
+            gum_sys::gum_x86_writer_put_vinserti64x4_zmm_reg_offset_ptr(
+                self.writer,
+                zmm,
+                reg as u32,
+                offset as gum_sys::gssize,
+                imm,
+            ) != 0
+        }
+    }
+
+    /// Insert a `vmovdqu64` from register+offset pointer to ZMM (AVX-512).
+    ///
+    /// Unaligned move of 512 bits.
+    /// Added in Frida 17.16.1.
+    pub fn put_vmovdqu64_reg_offset_ptr_zmm(
+        &self,
+        reg: X86Register,
+        offset: isize,
+        zmm: u32,
+    ) -> bool {
+        unsafe {
+            gum_sys::gum_x86_writer_put_vmovdqu64_reg_offset_ptr_zmm(
+                self.writer,
+                reg as u32,
+                offset as gum_sys::gssize,
+                zmm,
+            ) != 0
+        }
+    }
+
+    /// Insert a `vmovdqu64` from ZMM to register+offset pointer (AVX-512).
+    ///
+    /// Unaligned move of 512 bits.
+    /// Added in Frida 17.16.1.
+    pub fn put_vmovdqu64_zmm_reg_offset_ptr(
+        &self,
+        zmm: u32,
+        reg: X86Register,
+        offset: isize,
+    ) -> bool {
+        unsafe {
+            gum_sys::gum_x86_writer_put_vmovdqu64_zmm_reg_offset_ptr(
+                self.writer,
+                zmm,
+                reg as u32,
+                offset as gum_sys::gssize,
+            ) != 0
+        }
+    }
+
     /// Helper to convert Argument slice to GumArgument Vec.
     fn convert_arguments(arguments: &[Argument]) -> Vec<GumArgument> {
         arguments
