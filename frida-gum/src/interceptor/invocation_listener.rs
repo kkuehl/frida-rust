@@ -176,7 +176,7 @@ impl<'a> InvocationContext<'a> {
     /// The returned pointer is valid for the duration of the invocation.
     pub fn listener_thread_data(&self, size: usize) -> NativePointer {
         NativePointer(unsafe {
-            gum_sys::gum_invocation_context_get_listener_thread_data(self.context, size as u64)
+            gum_sys::gum_invocation_context_get_listener_thread_data(self.context, size as gum_sys::gsize)
         })
     }
 
@@ -186,7 +186,7 @@ impl<'a> InvocationContext<'a> {
     /// The returned pointer is valid for the duration of the invocation.
     pub fn listener_invocation_data(&self, size: usize) -> NativePointer {
         NativePointer(unsafe {
-            gum_sys::gum_invocation_context_get_listener_invocation_data(self.context, size as u64)
+            gum_sys::gum_invocation_context_get_listener_invocation_data(self.context, size as gum_sys::gsize)
         })
     }
 
