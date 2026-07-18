@@ -62,7 +62,11 @@ impl Memory {
     /// The address must point to valid, writable memory of at least `data.len()` bytes.
     pub unsafe fn write(address: NativePointer, data: &[u8]) -> bool {
         unsafe {
-            gum_sys::gum_memory_write(address.0, data.as_ptr() as *const _, data.len() as gum_sys::gsize) != 0
+            gum_sys::gum_memory_write(
+                address.0,
+                data.as_ptr() as *const _,
+                data.len() as gum_sys::gsize,
+            ) != 0
         }
     }
 
@@ -399,7 +403,8 @@ impl Memory {
             let ranges_raw: Vec<gum_sys::GumMemoryRange> =
                 ranges.iter().map(|r| r.memory_range).collect();
 
-            let values_gsize: Vec<gum_sys::gsize> = values.iter().map(|&v| v as gum_sys::gsize).collect();
+            let values_gsize: Vec<gum_sys::gsize> =
+                values.iter().map(|&v| v as gum_sys::gsize).collect();
 
             let result_array = gum_sys::gum_memory_find_pointers(
                 ranges_raw.as_ptr(),
