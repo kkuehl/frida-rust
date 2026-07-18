@@ -10,12 +10,7 @@
 
 #![cfg(target_os = "macos")]
 
-use {
-    core::ffi::c_void,
-    cstr_core::CString,
-    frida_gum_sys as gum_sys,
-    frida_gum_sys::gpointer,
-};
+use {core::ffi::c_void, cstr_core::CString, frida_gum_sys as gum_sys, frida_gum_sys::gpointer};
 
 #[cfg(not(feature = "std"))]
 use alloc::{boxed::Box, string::String, vec::Vec};
@@ -156,7 +151,8 @@ extern "C" fn enumerate_sections_callout(
     details: *const gum_sys::GumDarwinSectionDetails,
     user_data: *mut c_void,
 ) -> gum_sys::gboolean {
-    let mut f = unsafe { Box::from_raw(user_data as *mut Box<dyn FnMut(DarwinSectionDetails) -> bool>) };
+    let mut f =
+        unsafe { Box::from_raw(user_data as *mut Box<dyn FnMut(DarwinSectionDetails) -> bool>) };
     let r = unsafe { f(DarwinSectionDetails::from_raw(details)) };
     Box::leak(f);
     r as gum_sys::gboolean
@@ -166,7 +162,8 @@ extern "C" fn enumerate_symbols_callout(
     details: *const gum_sys::GumDarwinSymbolDetails,
     user_data: *mut c_void,
 ) -> gum_sys::gboolean {
-    let mut f = unsafe { Box::from_raw(user_data as *mut Box<dyn FnMut(DarwinSymbolDetails) -> bool>) };
+    let mut f =
+        unsafe { Box::from_raw(user_data as *mut Box<dyn FnMut(DarwinSymbolDetails) -> bool>) };
     let r = unsafe { f(DarwinSymbolDetails::from_raw(details)) };
     Box::leak(f);
     r as gum_sys::gboolean
@@ -176,7 +173,8 @@ extern "C" fn enumerate_exports_callout(
     details: *const gum_sys::GumDarwinExportDetails,
     user_data: *mut c_void,
 ) -> gum_sys::gboolean {
-    let mut f = unsafe { Box::from_raw(user_data as *mut Box<dyn FnMut(DarwinExportDetails) -> bool>) };
+    let mut f =
+        unsafe { Box::from_raw(user_data as *mut Box<dyn FnMut(DarwinExportDetails) -> bool>) };
     let r = unsafe { f(DarwinExportDetails::from_raw(details)) };
     Box::leak(f);
     r as gum_sys::gboolean
@@ -186,7 +184,8 @@ extern "C" fn enumerate_binds_callout(
     details: *const gum_sys::GumDarwinBindDetails,
     user_data: *mut c_void,
 ) -> gum_sys::gboolean {
-    let mut f = unsafe { Box::from_raw(user_data as *mut Box<dyn FnMut(DarwinBindDetails) -> bool>) };
+    let mut f =
+        unsafe { Box::from_raw(user_data as *mut Box<dyn FnMut(DarwinBindDetails) -> bool>) };
     let r = unsafe { f(DarwinBindDetails::from_raw(details)) };
     Box::leak(f);
     r as gum_sys::gboolean

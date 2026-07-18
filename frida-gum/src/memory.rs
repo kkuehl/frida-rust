@@ -465,5 +465,4 @@ impl Memory {
             gum_sys::gum_memory_dispose_writable_pages(first_page.0, n_pages);
         }
     }
-
 }

@@ -12,10 +12,7 @@
 
 #![allow(clippy::unnecessary_cast)]
 
-use {
-    bitflags::bitflags,
-    frida_gum_sys as gum_sys,
-};
+use {bitflags::bitflags, frida_gum_sys as gum_sys};
 
 bitflags! {
     /// Bit flags describing optional CPU features detected at runtime.
@@ -106,5 +103,4 @@ impl Query {
             _ => RwxSupport::None,
         }
     }
-
 }

@@ -10,7 +10,7 @@
 //! Availability can be checked with [`Kernel::api_is_available`].
 
 use {
-    crate::{glib_compat::g_free, MemoryRange, NativePointer, PageProtection},
+    crate::{MemoryRange, NativePointer, PageProtection, glib_compat::g_free},
     core::ffi::c_void,
     frida_gum_sys as gum_sys,
 };
@@ -102,13 +102,9 @@ extern "C" fn scan_callout(
     size: gum_sys::gsize,
     user_data: *mut c_void,
 ) -> gum_sys::gboolean {
-    let mut f = unsafe {
-        Box::from_raw(user_data as *mut Box<dyn FnMut(NativePointer, usize) -> bool>)
-    };
-    let r = f(
-        NativePointer(address as *mut c_void),
-        size as usize,
-    );
+    let mut f =
+        unsafe { Box::from_raw(user_data as *mut Box<dyn FnMut(NativePointer, usize) -> bool>) };
+    let r = f(NativePointer(address as *mut c_void), size as usize);
     Box::leak(f);
     r as gum_sys::gboolean
 }
@@ -220,8 +216,11 @@ impl Kernel {
     /// # Safety
     ///
     /// The range must be valid kernel memory.
-    pub unsafe fn scan<F>(range: &MemoryRange, pattern: &crate::memory_range::MatchPattern, mut callback: F)
-    where
+    pub unsafe fn scan<F>(
+        range: &MemoryRange,
+        pattern: &crate::memory_range::MatchPattern,
+        mut callback: F,
+    ) where
         F: FnMut(NativePointer, usize) -> bool,
     {
         let gum_range = gum_sys::GumMemoryRange {
