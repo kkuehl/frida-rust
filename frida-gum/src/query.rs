@@ -13,7 +13,6 @@
 #![allow(clippy::unnecessary_cast)]
 
 use {
-    crate::{MemoryRange, NativePointer},
     bitflags::bitflags,
     frida_gum_sys as gum_sys,
 };
@@ -108,28 +107,4 @@ impl Query {
         }
     }
 
-    /// Find the allocation range containing the specified memory.
-    ///
-    /// Returns the [`MemoryRange`] describing the allocation that contains
-    /// the given pointer, or `None` if the pointer does not belong to any
-    /// known allocation.
-    ///
-    /// # Safety
-    ///
-    /// `mem` must point to a region of at least `size` bytes that is part of
-    /// a single allocation visible to Frida.
-    pub unsafe fn page_allocation_range(mem: NativePointer, size: u32) -> Option<MemoryRange> {
-        unsafe {
-            let mut raw: gum_sys::GumMemoryRange = core::mem::zeroed();
-            gum_sys::gum_query_page_allocation_range(mem.0, size, &mut raw);
-            if raw.size == 0 {
-                None
-            } else {
-                Some(MemoryRange::new(
-                    NativePointer(raw.base_address as *mut core::ffi::c_void),
-                    raw.size as usize,
-                ))
-            }
-        }
-    }
 }

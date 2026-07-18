@@ -86,7 +86,7 @@ impl Interceptor {
     ///
     /// The provided address *must* point to the start of a function in a valid
     /// memory region.
-    #[cfg(all(feature = "invocation-listener", has_attach_options))]
+    #[cfg(feature = "invocation-listener")]
     #[cfg_attr(docsrs, doc(cfg(feature = "invocation-listener")))]
     pub unsafe fn attach_with_options<I: InvocationListener>(
         &mut self,
@@ -564,7 +564,7 @@ pub enum Ignorability {
 ///
 /// Build with [`AttachOptions::new`] and chain the setters for the knobs you
 /// need; unset fields use Frida's defaults.
-#[cfg(all(feature = "invocation-listener", has_attach_options))]
+#[cfg(feature = "invocation-listener")]
 #[derive(Debug, Clone)]
 pub struct AttachOptions {
     scratch_register: i32,
@@ -575,14 +575,14 @@ pub struct AttachOptions {
     ignorability: Ignorability,
 }
 
-#[cfg(all(feature = "invocation-listener", has_attach_options))]
+#[cfg(feature = "invocation-listener")]
 impl Default for AttachOptions {
     fn default() -> Self {
         Self::new()
     }
 }
 
-#[cfg(all(feature = "invocation-listener", has_attach_options))]
+#[cfg(feature = "invocation-listener")]
 impl AttachOptions {
     /// Create attach options with Frida's defaults.
     pub fn new() -> Self {

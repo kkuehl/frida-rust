@@ -123,21 +123,6 @@ fn main() {
         .write_to_file(out_path.join("bindings.rs"))
         .unwrap();
 
-    // Check for newer API types and emit cfg flags so frida-gum can conditionally compile
-    let bindings_content = std::fs::read_to_string(out_path.join("bindings.rs")).unwrap();
-    if bindings_content.contains("pub type GumAttachOptions") {
-        println!("cargo:rustc-cfg=has_attach_options");
-    }
-    if bindings_content.contains("pub type GumControlFlowGraph") {
-        println!("cargo:rustc-cfg=has_control_flow_graph");
-    }
-    if bindings_content.contains("pub type GumUnwindBroker") {
-        println!("cargo:rustc-cfg=has_unwind_broker");
-    }
-    if bindings_content.contains("pub const GumExceptorMode_GUM_EXCEPTOR_MODE_FULL") {
-        println!("cargo:rustc-cfg=has_exceptor_mode");
-    }
-
     #[cfg(feature = "event-sink")]
     {
         let mut builder = cc::Build::new();
