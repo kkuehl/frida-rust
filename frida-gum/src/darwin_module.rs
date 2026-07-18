@@ -43,7 +43,7 @@ impl DarwinSegment {
                 vm_size: (*details).vm_size,
                 file_offset: (*details).file_offset,
                 file_size: (*details).file_size,
-                protection: (*details).protection,
+                protection: (*details).protection as u32,
             }
         }
     }
@@ -62,10 +62,10 @@ impl DarwinSectionDetails {
     unsafe fn from_raw(details: *const gum_sys::GumDarwinSectionDetails) -> Self {
         unsafe {
             Self {
-                segment_name: CStr::from_ptr((*details).segment_name)
+                segment_name: CStr::from_ptr((*details).segment_name.as_ptr())
                     .to_string_lossy()
                     .into_owned(),
-                section_name: CStr::from_ptr((*details).section_name)
+                section_name: CStr::from_ptr((*details).section_name.as_ptr())
                     .to_string_lossy()
                     .into_owned(),
                 vm_address: (*details).vm_address,
@@ -111,7 +111,7 @@ impl DarwinExportDetails {
                     .to_string_lossy()
                     .into_owned(),
                 flags: (*details).flags,
-                offset: (*details).offset,
+                offset: (*details).__bindgen_anon_1.__bindgen_anon_1.offset,
             }
         }
     }
@@ -136,11 +136,11 @@ impl DarwinBindDetails {
                 segment_index: (*details).segment as u16,
                 offset: (*details).offset,
                 type_: (*details).type_,
-                library_ordinal: (*details).library_ordinal,
+                library_ordinal: (*details).library_ordinal as i16,
                 symbol_name: CStr::from_ptr((*details).symbol_name)
                     .to_string_lossy()
                     .into_owned(),
-                symbol_flags: (*details).symbol_flags,
+                symbol_flags: (*details).symbol_flags as i8,
                 addend: (*details).addend,
             }
         }
@@ -203,7 +203,15 @@ impl DarwinModule {
     pub fn from_file(path: &str) -> Option<Self> {
         let path = CString::new(path).ok()?;
         let mut error: *mut gum_sys::GError = core::ptr::null_mut();
-        let ptr = unsafe { gum_sys::gum_darwin_module_new_from_file(path.as_ptr(), &mut error) };
+        let ptr = unsafe {
+            gum_sys::gum_darwin_module_new_from_file(
+                path.as_ptr(),
+                gum_sys::_GumCpuType_GUM_CPU_INVALID,
+                gum_sys::_GumPtrauthSupport_GUM_PTRAUTH_INVALID,
+                0,
+                &mut error,
+            )
+        };
         if ptr.is_null() {
             None
         } else {
@@ -216,7 +224,13 @@ impl DarwinModule {
         let name = CString::new(name).ok()?;
         let mut error: *mut gum_sys::GError = core::ptr::null_mut();
         let ptr = unsafe {
-            gum_sys::gum_darwin_module_new_from_memory(name.as_ptr(), base_address, &mut error)
+            gum_sys::gum_darwin_module_new_from_memory(
+                name.as_ptr(),
+                gum_sys::_GumCpuType_GUM_CPU_INVALID,
+                base_address,
+                gum_sys::_GumPtrauthSupport_GUM_PTRAUTH_INVALID,
+                &mut error,
+            )
         };
         if ptr.is_null() {
             None
@@ -229,8 +243,9 @@ impl DarwinModule {
     pub fn segments(&self) -> Vec<DarwinSegment> {
         let mut result = Vec::new();
         unsafe {
-            let n_segments = (*self.inner).segments.len;
-            let segments = (*self.inner).segments.data as *const gum_sys::GumDarwinSegment;
+            let segments_array = (*self.inner).segments;
+            let n_segments = (*segments_array).len;
+            let segments = (*segments_array).data as *const gum_sys::GumDarwinSegment;
             for i in 0..n_segments {
                 result.push(DarwinSegment::from_raw(segments.add(i as usize)));
             }

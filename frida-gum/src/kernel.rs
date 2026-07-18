@@ -277,7 +277,7 @@ impl Kernel {
         let callback = Box::into_raw(Box::new(callback));
         unsafe {
             gum_sys::gum_kernel_enumerate_module_ranges(
-                module_cstr.as_ptr(),
+                module_cstr.as_ptr() as *const core::ffi::c_char,
                 protection as u32,
                 Some(enumerate_module_ranges_callout),
                 callback as *mut c_void,
