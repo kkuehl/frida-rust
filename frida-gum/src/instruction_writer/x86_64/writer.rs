@@ -463,7 +463,9 @@ impl X86InstructionWriter {
 
             gum_sys::gum_x86_writer_put_call_address_with_arguments_array(
                 self.writer,
-                gum_sys::_GumCallingConvention_GUM_CALL_CAPI.try_into().unwrap(),
+                gum_sys::_GumCallingConvention_GUM_CALL_CAPI
+                    .try_into()
+                    .unwrap(),
                 address,
                 arguments.len() as u32,
                 arguments.as_ptr(),
@@ -496,7 +498,9 @@ impl X86InstructionWriter {
 
             gum_sys::gum_x86_writer_put_call_address_with_aligned_arguments_array(
                 self.writer,
-                gum_sys::_GumCallingConvention_GUM_CALL_CAPI.try_into().unwrap(),
+                gum_sys::_GumCallingConvention_GUM_CALL_CAPI
+                    .try_into()
+                    .unwrap(),
                 address,
                 arguments.len() as u32,
                 arguments.as_ptr(),
@@ -662,7 +666,9 @@ impl X86InstructionWriter {
         unsafe {
             gum_sys::gum_x86_writer_put_call_reg_with_arguments(
                 self.writer,
-                gum_sys::_GumCallingConvention_GUM_CALL_CAPI.try_into().unwrap(),
+                gum_sys::_GumCallingConvention_GUM_CALL_CAPI
+                    .try_into()
+                    .unwrap(),
                 reg as u32,
                 gum_arguments.len() as u32,
                 gum_arguments.as_ptr(),
@@ -727,7 +733,9 @@ impl X86InstructionWriter {
         unsafe {
             gum_sys::gum_x86_writer_put_call_reg_offset_ptr_with_arguments(
                 self.writer,
-                gum_sys::_GumCallingConvention_GUM_CALL_CAPI.try_into().unwrap(),
+                gum_sys::_GumCallingConvention_GUM_CALL_CAPI
+                    .try_into()
+                    .unwrap(),
                 reg as u32,
                 offset as gssize,
                 gum_arguments.len() as u32,
@@ -772,7 +780,9 @@ impl X86InstructionWriter {
         unsafe {
             gum_sys::gum_x86_writer_put_call_reg_offset_ptr_with_aligned_arguments(
                 self.writer,
-                gum_sys::_GumCallingConvention_GUM_CALL_CAPI.try_into().unwrap(),
+                gum_sys::_GumCallingConvention_GUM_CALL_CAPI
+                    .try_into()
+                    .unwrap(),
                 reg as u32,
                 offset as gssize,
                 gum_arguments.len() as u32,
@@ -816,7 +826,9 @@ impl X86InstructionWriter {
         unsafe {
             gum_sys::gum_x86_writer_put_call_reg_with_aligned_arguments(
                 self.writer,
-                gum_sys::_GumCallingConvention_GUM_CALL_CAPI.try_into().unwrap(),
+                gum_sys::_GumCallingConvention_GUM_CALL_CAPI
+                    .try_into()
+                    .unwrap(),
                 reg as u32,
                 gum_arguments.len() as u32,
                 gum_arguments.as_ptr(),
