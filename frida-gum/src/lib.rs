@@ -100,6 +100,8 @@ pub use memory_access_monitor::*;
 mod memory;
 pub use memory::Memory;
 
+mod glib_compat;
+
 mod memory_range;
 pub use memory_range::*;
 
