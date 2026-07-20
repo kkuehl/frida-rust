@@ -97,6 +97,9 @@ mod memory_access_monitor;
 #[cfg(feature = "memory-access-monitor")]
 pub use memory_access_monitor::*;
 
+mod memory;
+pub use memory::Memory;
+
 mod memory_range;
 pub use memory_range::*;
 
