@@ -1230,10 +1230,6 @@ impl X86InstructionWriter {
     /// Insert a `kmovq` from k-register to register+offset pointer (AVX-512).
     ///
     /// Added in Frida 17.16.1.
-
-    /// Insert a `kmovq` from k-register to register+offset pointer (AVX-512).
-    ///
-    /// Added in Frida 17.16.1.
     pub fn put_kmovq_kreg_reg_offset_ptr(
         &self,
         kreg: u32,
