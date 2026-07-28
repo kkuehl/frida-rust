@@ -327,8 +327,7 @@ impl Aarch64InstructionWriter {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use frida_gum::instruction_writer::Aarch64InstructionWriter;
-    /// use frida_gum::instruction_writer::aarch64::Aarch64Register;
+    /// use frida_gum::instruction_writer::{Aarch64InstructionWriter, Aarch64Register, InstructionWriter};
     ///
     /// let writer = Aarch64InstructionWriter::new(0x1000);
     /// // Sign x0 using x1 as modifier
