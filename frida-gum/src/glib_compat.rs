@@ -48,6 +48,7 @@ pub unsafe fn g_free(mem: gpointer) {
 /// # Safety
 ///
 /// `error` must be a valid `GError` that has not already been freed.
+#[allow(dead_code)]
 pub unsafe fn g_error_free(error: *mut GError) {
     unsafe { sys::g_error_free(error) }
 }

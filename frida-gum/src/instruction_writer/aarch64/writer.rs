@@ -312,9 +312,9 @@ impl Aarch64InstructionWriter {
     /// Moves a 16-bit immediate into a register while keeping other bits unchanged.
     /// Used for building 64-bit constants across multiple instructions.
     /// Added in Frida 17.16.1.
-    pub fn put_movk_reg_imm(&self, reg: Aarch64Register, shift: u16, imm: u32) -> bool {
+    pub fn put_movk_reg_imm(&self, reg: Aarch64Register, imm: u16, shift: u32) -> bool {
         unsafe {
-            gum_sys::gum_arm64_writer_put_movk_reg_imm(self.writer, reg as u32, shift, imm) != 0
+            gum_sys::gum_arm64_writer_put_movk_reg_imm(self.writer, reg as u32, imm, shift) != 0
         }
     }
 
@@ -326,7 +326,7 @@ impl Aarch64InstructionWriter {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use frida_gum::instruction_writer::{Aarch64InstructionWriter, InstructionWriter, Aarch64Register};
+    /// use frida_gum::instruction_writer::{Aarch64InstructionWriter, Aarch64Register, InstructionWriter};
     ///
     /// let writer = Aarch64InstructionWriter::new(0x1000);
     /// // Sign x0 using x1 as modifier

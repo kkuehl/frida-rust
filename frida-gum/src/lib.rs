@@ -108,6 +108,8 @@ pub use memory::Memory;
 mod kernel;
 pub use kernel::*;
 
+mod glib_compat;
+
 mod memory_range;
 pub use memory_range::*;
 
@@ -128,8 +130,6 @@ pub use symbol_util::*;
 
 mod cloak;
 pub use cloak::*;
-
-mod glib_compat;
 
 mod query;
 pub use query::*;
