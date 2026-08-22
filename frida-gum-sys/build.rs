@@ -229,6 +229,14 @@ fn main() {
             .compile("stalker_params");
     }
 
+    // MSVC compat: prebuilt frida-gumjs may depend on newer __std_* symbols.
+    #[cfg(feature = "js")]
+    if target_os == "windows" {
+        cc::Build::new()
+            .file("msvc_compat.c")
+            .compile("msvc_compat");
+    }
+
     if target_os == "windows" {
         for lib in [
             "dnsapi", "iphlpapi", "psapi", "winmm", "ws2_32", "advapi32", "crypt32", "gdi32",
