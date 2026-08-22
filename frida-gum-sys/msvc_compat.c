@@ -6,13 +6,14 @@
  * __std_min_element_*, __std_rotate, etc.) not present in older
  * msvcprt/libcmt (e.g. VS 2022 v17.14 / link.exe 14.44.35207).
  *
- * Linking MimicAgentX.dll against frida-gumjs.lib currently fails with
- * 9 unresolved __std_* externals. This file provides simple fallback
- * implementations so the link succeeds on these toolchains.
+ * On MSVC >= 1944 these helpers are provided by libcpmt natively,
+ * so this file skips its own definitions to avoid LNK2005 conflicts.
  */
 
 #include <stdlib.h>
 #include <string.h>
+
+#if defined(_MSC_VER) && _MSC_VER < 1944
 
 /* max_element helpers ---------------------------------------------------- */
 
@@ -145,3 +146,5 @@ void __stdcall __std_rotate(
 
     free(buf);
 }
+
+#endif /* _MSC_VER < 1944 */
