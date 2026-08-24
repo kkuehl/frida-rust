@@ -3,17 +3,19 @@
  *
  * The official Frida devkit is built with a newer MSVC toolchain that
  * introduces vectorized algorithm helpers (__std_max_element_*,
- * __std_min_element_*, __std_rotate, etc.) not present in older
- * msvcprt/libcmt (e.g. VS 2022 v17.14 / link.exe 14.44.35207).
+ * __std_min_element_*, __std_rotate, etc.). These symbols are expected
+ * by the prebuilt V8 objects in frida-gumjs but may not be provided by
+ * all MSVC/CRT combinations.
  *
- * On MSVC >= 1944 these helpers are provided by libcpmt natively,
- * so this file skips its own definitions to avoid LNK2005 conflicts.
+ * ALWAYS provide these fallbacks to ensure frida-gumjs links successfully.
+ * If the linker complains about duplicate symbols (LNK2005), that means
+ * your toolchain already provides them - in that case, adjust the guard below.
  */
 
 #include <stdlib.h>
 #include <string.h>
 
-#if defined(_MSC_VER) && _MSC_VER < 1944
+#if defined(_MSC_VER)
 
 /* max_element helpers ---------------------------------------------------- */
 
