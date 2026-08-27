@@ -46,4 +46,15 @@ impl Context {
             }
         }
     }
+
+    /// Process one iteration of the GLib main context, blocking until a source
+    /// is ready. Returns true if an event was dispatched.
+    ///
+    /// Unlike `run()` which only drains already-pending events, this call blocks
+    /// on the OS until a GLib source becomes ready (timer fires, I/O completes,
+    /// idle callback scheduled). Use in a loop for a proper event-driven main
+    /// loop that supports setTimeout, Process.attachModuleObserver, and Promises.
+    pub fn iterate_blocking(&self) -> bool {
+        unsafe { g_main_context_iteration(self.internal, 1) != 0 }
+    }
 }
