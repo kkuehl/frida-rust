@@ -59,4 +59,11 @@ where
     pub fn run_event_loop(&self) {
         self.context.run(false);
     }
+
+    /// Block until the next GLib event is ready, process it, return.
+    /// Use in a loop for a proper event-driven keep-alive that supports
+    /// setTimeout, Process.attachModuleObserver, and Promise resolution.
+    pub fn pump_blocking(&self) -> bool {
+        self.context.iterate_blocking()
+    }
 }
