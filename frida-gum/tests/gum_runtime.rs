@@ -98,11 +98,11 @@ fn find_module_by_address_returns_the_main_module_from_a_code_pointer() {
     // Take an address we know is inside our own binary (a function pointer to
     // this test function). find_module_by_address should map it back to our
     // main module.
-    let addr = find_module_by_address_returns_the_main_module_from_a_code_pointer as *const ()
-        as usize;
-    let module = p.find_module_by_address(addr).expect(
-        "find_module_by_address should resolve a code pointer inside the test binary",
-    );
+    let addr =
+        find_module_by_address_returns_the_main_module_from_a_code_pointer as *const () as usize;
+    let module = p
+        .find_module_by_address(addr)
+        .expect("find_module_by_address should resolve a code pointer inside the test binary");
     assert_eq!(
         module.name(),
         main.name(),
@@ -118,8 +118,14 @@ fn memory_range_display_and_hex_bracket_the_range() {
     let range = MemoryRange::new(NativePointer(base as *mut c_void), size);
 
     assert_eq!(format!("{range}"), format!("{}..{}", base, base + size));
-    assert_eq!(format!("{range:x}"), format!("{:x}..{:x}", base, base + size));
-    assert_eq!(format!("{range:X}"), format!("{:X}..{:X}", base, base + size));
+    assert_eq!(
+        format!("{range:x}"),
+        format!("{:x}..{:x}", base, base + size)
+    );
+    assert_eq!(
+        format!("{range:X}"),
+        format!("{:X}..{:X}", base, base + size)
+    );
 }
 
 #[test]

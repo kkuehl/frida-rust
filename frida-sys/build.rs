@@ -57,6 +57,14 @@ fn main() {
     let bindings = bindings
         .formatter(bindgen::Formatter::Prettyplease)
         .header_contents("core.h", "#include \"frida-core.h\"")
+        // These libc declarations leak in through the devkit headers and
+        // collide with rustc's runtime-symbol lint (`usize` vs `u64`
+        // signatures). The wrappers do not use them.
+        .blocklist_function("memcmp")
+        .blocklist_function("memcpy")
+        .blocklist_function("memmove")
+        .blocklist_function("memset")
+        .blocklist_function("strlen")
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
         .generate_comments(false)
         .layout_tests(false)

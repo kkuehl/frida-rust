@@ -6,7 +6,7 @@ use frida_gum_sys as gum_sys;
 use lazy_static::lazy_static;
 
 lazy_static! {
-    static ref GUM: gum::Gum = unsafe { gum::Gum::obtain() };
+    static ref GUM: gum::Gum = gum::Gum::obtain();
 }
 
 struct SampleEventSink;

@@ -156,9 +156,7 @@ fn script_rpc_exports_are_callable() {
 
     let mut opts = ScriptOption::new();
     let mut script = session.create_script(source, &mut opts).expect("script");
-    script
-        .handle_message(NoopHandler)
-        .expect("handle_message");
+    script.handle_message(NoopHandler).expect("handle_message");
     script.load().expect("load");
 
     let mut exports = script.list_exports().expect("list_exports");

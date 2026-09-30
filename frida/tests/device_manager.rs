@@ -32,7 +32,9 @@ fn get_local_device_and_by_id_agree() {
     let id = by_type.get_id().to_owned();
     assert!(!id.is_empty(), "local device id must not be empty");
 
-    let by_id = dm.get_device_by_id(&id).expect("get_device_by_id(local id)");
+    let by_id = dm
+        .get_device_by_id(&id)
+        .expect("get_device_by_id(local id)");
     assert_eq!(by_id.get_id(), id, "device fetched by id must round-trip");
     assert_eq!(
         by_id.get_type(),

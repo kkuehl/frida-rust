@@ -8,7 +8,7 @@ fn main() {
     let block =
         unsafe { std::alloc::alloc(std::alloc::Layout::from_size_align_unchecked(BLK_SIZE, 1)) };
     let range = MemoryRange::new(NativePointer(block as *mut _), BLK_SIZE);
-    let gum = unsafe { frida_gum::Gum::obtain() };
+    let gum = frida_gum::Gum::obtain();
     let mam = MemoryAccessMonitor::new(
         &gum,
         &[range],

@@ -17,7 +17,10 @@ fn null_pointer_is_null() {
 fn non_null_pointer_is_not_null() {
     let mut byte = 42u8;
     let p = NativePointer(&mut byte as *mut _ as *mut c_void);
-    assert!(!p.is_null(), "NativePointer::is_null must be false for non-null");
+    assert!(
+        !p.is_null(),
+        "NativePointer::is_null must be false for non-null"
+    );
 }
 
 #[test]

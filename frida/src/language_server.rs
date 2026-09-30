@@ -10,7 +10,7 @@
 //! or JavaScript project, powered by the same TypeScript 7.0 compiler as
 //! [`Compiler`](crate::Compiler) and sharing its parse cache.
 
-use frida_sys::{_FridaLanguageServer, GError, _GClosure, gpointer};
+use frida_sys::{_FridaLanguageServer, _GClosure, GError, gpointer};
 use std::ffi::{CStr, CString, c_char, c_void};
 use std::marker::PhantomData;
 
@@ -71,11 +71,7 @@ impl<'a> LanguageServer<'a> {
     pub fn start(&self) -> Result<()> {
         let mut error: *mut GError = std::ptr::null_mut();
         unsafe {
-            frida_sys::frida_language_server_start_sync(
-                self.ptr,
-                std::ptr::null_mut(),
-                &mut error,
-            )
+            frida_sys::frida_language_server_start_sync(self.ptr, std::ptr::null_mut(), &mut error)
         };
 
         if !error.is_null() {
@@ -123,10 +119,9 @@ impl<'a> LanguageServer<'a> {
         }));
 
         unsafe {
-            let cb = Some(std::mem::transmute::<
-                *mut c_void,
-                unsafe extern "C" fn(),
-            >(call_on_message as *mut c_void));
+            let cb = Some(std::mem::transmute::<*mut c_void, unsafe extern "C" fn()>(
+                call_on_message as *mut c_void,
+            ));
             frida_sys::g_signal_connect_data(
                 self.ptr as _,
                 message.as_ptr(),
