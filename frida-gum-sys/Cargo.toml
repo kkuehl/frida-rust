@@ -14,7 +14,9 @@ event-sink = ["cc"]
 invocation-listener = ["cc"]
 stalker-observer = ["cc"]
 stalker-params = ["cc"]
-js = []
+# The `js` (gumjs) target needs `cc` on Windows for the `msvc_compat.c` shim,
+# otherwise the build script fails with "cannot find module or crate `cc`".
+js = ["cc"]
 
 [build-dependencies]
 bindgen = "0.72.1"

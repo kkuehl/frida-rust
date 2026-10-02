@@ -1,0 +1,16 @@
+# Frida's prebuilt devkit static libraries (frida-gum, frida-gumjs,
+# frida-core) are built against the static MSVC CRT (LIBCMT). Rust links the
+# dynamic CRT (MSVCRT) by default, so the linker emits
+# `LNK4098: defaultlib 'LIBCMT' conflicts with use of other libs` and the
+# process ends up with two CRTs (separate heaps/globals).
+#
+# Build with the same CRT as the devkits on Windows MSVC. This is also the
+# right choice for injecting the resulting DLLs (no MSVC runtime dependency).
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]
+
+[target.i686-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]
+
+[target.aarch64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]

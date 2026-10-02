@@ -13,6 +13,12 @@
 
 use std::ffi::CStr;
 
+mod barebone;
+pub use barebone::*;
+
+mod compiler;
+pub use compiler::*;
+
 mod device;
 pub use device::*;
 
@@ -24,6 +30,9 @@ pub use error::Error;
 
 mod injector;
 pub use injector::*;
+
+mod language_server;
+pub use language_server::*;
 
 mod process;
 pub use process::*;

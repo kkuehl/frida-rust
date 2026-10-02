@@ -2,8 +2,14 @@ frida-gum.h
 libfrida-gum.a
 frida-gum.lib
 frida-gum-example.c
+frida-gum-example.sln
+frida-gum-example.vcxproj
+frida-gum-example.vcxproj.filters
 
 frida-gumjs.h
 libfrida-gumjs.a
 frida-gumjs.lib
 frida-gumjs-example.c
+frida-gumjs-example.sln
+frida-gumjs-example.vcxproj
+frida-gumjs-example.vcxproj.filters

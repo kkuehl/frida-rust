@@ -13,7 +13,7 @@ use {
 const RUNS: usize = 1000000;
 
 lazy_static! {
-    static ref GUM: Gum = unsafe { Gum::obtain() };
+    static ref GUM: Gum = Gum::obtain();
     static ref ORIGINAL_TEST: Mutex<UnsafeCell<Option<TestFunc>>> =
         Mutex::new(UnsafeCell::new(None));
 }

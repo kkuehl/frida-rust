@@ -12,6 +12,7 @@ use crate::DeviceType;
 use crate::Error;
 use crate::Frida;
 use crate::Result;
+use crate::barebone::{BareboneConfig, BareboneDeviceOptions};
 use crate::device::{self, Device};
 
 /// Platform-independent device manager abstraction access.
@@ -110,6 +111,90 @@ impl<'a> DeviceManager<'a> {
     /// Returns the local device.
     pub fn get_local_device(&'a self) -> Result<Device<'a>> {
         self.get_device_by_type(device::DeviceType::Local)
+    }
+
+    /// Removes a remote device previously added with [`Self::get_remote_device`].
+    ///
+    /// Wraps `frida_device_manager_remove_remote_device_sync`, exposed publicly
+    /// alongside the Barebone add/remove APIs in Frida 17.18.0.
+    pub fn remove_remote_device(&self, host: &str) -> Result<()> {
+        let mut error: *mut frida_sys::GError = std::ptr::null_mut();
+        let host_cstring = CString::new(host).map_err(|_| Error::CStringFailed)?;
+
+        unsafe {
+            frida_sys::frida_device_manager_remove_remote_device_sync(
+                self.manager_ptr,
+                host_cstring.as_ptr(),
+                std::ptr::null_mut(),
+                &mut error,
+            )
+        };
+
+        if !error.is_null() {
+            unsafe { frida_sys::g_error_free(error) };
+            return Err(Error::DeviceLookupFailed);
+        }
+
+        Ok(())
+    }
+
+    /// Access the underlying `FridaDeviceManager` pointer.
+    ///
+    /// Intended for interoperability with sibling APIs such as
+    /// [`Compiler::new`](crate::Compiler::new) that take a manager pointer.
+    pub fn raw_ptr(&self) -> *mut _FridaDeviceManager {
+        self.manager_ptr
+    }
+
+    /// Adds a Barebone device using the provided configuration and options.
+    ///
+    /// Wraps `frida_device_manager_add_barebone_device_sync`, added in Frida 17.18.0.
+    pub fn add_barebone_device<'b>(
+        &'a self,
+        config: &BareboneConfig,
+        options: Option<&BareboneDeviceOptions>,
+    ) -> Result<Device<'b>>
+    where
+        'a: 'b,
+    {
+        let mut error: *mut frida_sys::GError = std::ptr::null_mut();
+        let opts_ptr = options.map(|o| o.ptr).unwrap_or(std::ptr::null_mut());
+        let device_ptr = unsafe {
+            frida_sys::frida_device_manager_add_barebone_device_sync(
+                self.manager_ptr,
+                config.raw_ptr(),
+                opts_ptr,
+                std::ptr::null_mut(),
+                &mut error,
+            )
+        };
+
+        if !error.is_null() {
+            unsafe { frida_sys::g_error_free(error) };
+            return Err(Error::DeviceLookupFailed);
+        }
+
+        Ok(Device::from_raw(device_ptr))
+    }
+
+    /// Removes a Barebone device previously added with [`Self::add_barebone_device`].
+    pub fn remove_barebone_device(&self, device: &Device<'_>) -> Result<()> {
+        let mut error: *mut frida_sys::GError = std::ptr::null_mut();
+        unsafe {
+            frida_sys::frida_device_manager_remove_barebone_device_sync(
+                self.manager_ptr,
+                device.device_ptr,
+                std::ptr::null_mut(),
+                &mut error,
+            )
+        };
+
+        if !error.is_null() {
+            unsafe { frida_sys::g_error_free(error) };
+            return Err(Error::DeviceLookupFailed);
+        }
+
+        Ok(())
     }
 
     /// Returns the device with the specified id.

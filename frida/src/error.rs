@@ -82,6 +82,24 @@ pub enum Error {
         message: String,
     },
 
+    /// Compiler build/watch failed.
+    #[error("Compiler build failed ({code}) {message}")]
+    CompilerBuildFailed {
+        /// Error code
+        code: i32,
+        /// Error message
+        message: String,
+    },
+
+    /// Language server start/post failed.
+    #[error("Language server operation failed ({code}) {message}")]
+    LanguageServerFailed {
+        /// Error code
+        code: i32,
+        /// Error message
+        message: String,
+    },
+
     /// Received unexpected RPC message.
     #[error("Unexpected RPC message received.")]
     RpcUnexpectedMessage,

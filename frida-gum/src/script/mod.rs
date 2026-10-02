@@ -37,8 +37,11 @@ where
         callback: Option<F>,
     ) -> GumResult<Script<F>> {
         let scheduler = Scheduler::obtain(backend);
-        scheduler.disable_background_thread();
 
+        // NOTE: the GumScriptScheduler background thread is intentionally left
+        // enabled. It handles dispatching for module observers
+        // (Process.attachModuleObserver) and other async GumJS operations;
+        // disabling it prevents observer callbacks from ever firing.
         let context = scheduler.get_context();
         context.create_main_loop(true);
         context.set_as_thread_default();
