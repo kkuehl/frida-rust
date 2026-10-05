@@ -7,15 +7,17 @@
  * by the prebuilt V8 objects in frida-gumjs but may not be provided by
  * all MSVC/CRT combinations.
  *
- * ALWAYS provide these fallbacks to ensure frida-gumjs links successfully.
- * If the linker complains about duplicate symbols (LNK2005), that means
- * your toolchain already provides them - in that case, adjust the guard below.
+ * MSVC 19.50 (Visual Studio 2026) ships vectorized algorithm helpers
+ * (__std_max_element_*, __std_min_element_*, __std_rotate) natively in
+ * libcpmt, so on those toolchains we MUST NOT redefine them (LNK2005).
+ * Older toolchains (VS 2022 / MSVC 19.4x and earlier) lack these symbols,
+ * so we provide fallbacks here.
  */
 
 #include <stdlib.h>
 #include <string.h>
 
-#if defined(_MSC_VER)
+#if defined(_MSC_VER) && _MSC_VER < 1950
 
 /* max_element helpers ---------------------------------------------------- */
 
@@ -149,4 +151,4 @@ void __stdcall __std_rotate(
     free(buf);
 }
 
-#endif /* _MSC_VER < 1944 */
+#endif /* _MSC_VER < 1950 */
