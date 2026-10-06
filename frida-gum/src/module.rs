@@ -412,6 +412,34 @@ impl Module {
                 &mut result as *mut _ as *mut c_void,
             );
         }
+
+        // On Windows, Frida's `gum_native_module_enumerate_imports` fills `slot` with the import
+        // *descriptor's* IAT base (constant for every import within a DLL) and resolves `address`
+        // against the importing module rather than the exporting one (so it is always 0). The
+        // imports are returned descriptor-major/thunk-minor, so reconstruct the per-import IAT
+        // slot (contiguous 8-byte entries) and its resolved value (the forwarder target) here.
+        #[cfg(windows)]
+        {
+            let word = core::mem::size_of::<usize>();
+            let mut descriptor_base = 0usize;
+            let mut index = 0usize;
+            for entry in &mut result {
+                if entry.slot != descriptor_base {
+                    descriptor_base = entry.slot;
+                    index = 0;
+                }
+                let slot = descriptor_base + index * word;
+                let address = if slot != 0 {
+                    unsafe { core::ptr::read(slot as *const usize) }
+                } else {
+                    0
+                };
+                entry.slot = slot;
+                entry.address = address;
+                index += 1;
+            }
+        }
+
         result
     }
 
