@@ -1,0 +1,10 @@
+[package]
+name = "rtlalloc-probe"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+frida-gum = { path = "../../../frida-gum", features = ["auto-download", "event-sink", "invocation-listener"] }
+libc = "0.2"
+libloading = "0.8"
