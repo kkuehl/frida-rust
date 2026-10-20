@@ -42,6 +42,10 @@ fn main() {
         }
     }
 
+    if target_os == "android" {
+        link_android_compiler_rt_builtins();
+    }
+
     let bindings = bindgen::Builder::default();
 
     #[cfg(feature = "auto-download")]
@@ -83,5 +87,47 @@ fn main() {
         ] {
             println!("cargo:rustc-link-lib=dylib={lib}");
         }
+    }
+}
+
+/// The frida-core devkit bundles frida-gum, whose cache-flush path (gummemory-linux.c) references the
+/// compiler-rt builtin `__clear_cache`. Android's bionic does not provide it (it is a static
+/// compiler-rt symbol), so on Android an executable fails to link with "undefined symbol:
+/// __clear_cache" and a cdylib loads with that symbol unresolved. Link the NDK's clang_rt.builtins
+/// for the target arch to provide it. Located via the target compiler's own resource dir, so it is
+/// NDK-version independent.
+fn link_android_compiler_rt_builtins() {
+    let arch = match env::var("CARGO_CFG_TARGET_ARCH").unwrap_or_default().as_str() {
+        "aarch64" => "aarch64",
+        "arm" => "arm",
+        "x86_64" => "x86_64",
+        "x86" => "i686",
+        other => {
+            println!("cargo:warning=frida-sys: unknown android arch '{other}', not linking compiler-rt builtins");
+            return;
+        }
+    };
+    // cargo exposes the target C compiler as CC_<target> (dashes) or CC_<target underscored>;
+    // cargo-ndk sets it to the NDK clang. Fall back to CC, then plain clang.
+    let target = env::var("TARGET").unwrap_or_default();
+    let cc = env::var(format!("CC_{target}"))
+        .or_else(|_| env::var(format!("CC_{}", target.replace('-', "_"))))
+        .or_else(|_| env::var("CC"))
+        .unwrap_or_else(|_| "clang".to_string());
+    let resource_dir = std::process::Command::new(&cc)
+        .arg("-print-resource-dir")
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string());
+    match resource_dir {
+        Some(dir) if !dir.is_empty() => {
+            // builtins live at <resource-dir>/lib/linux/libclang_rt.builtins-<arch>-android.a
+            println!("cargo:rustc-link-search=native={dir}/lib/linux");
+            println!("cargo:rustc-link-lib=static=clang_rt.builtins-{arch}-android");
+        }
+        _ => println!(
+            "cargo:warning=frida-sys: could not resolve clang resource dir via '{cc}'; __clear_cache may be unresolved on android"
+        ),
     }
 }
