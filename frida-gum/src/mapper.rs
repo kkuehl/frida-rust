@@ -8,6 +8,10 @@
 //! in memory, relocated and bound to what it imports, and the loader never hears of it.
 //!
 //! The module is in the platform's own format: PE on Windows, Mach-O on Darwin, ELF elsewhere.
+//!
+//! On Windows, map from one thread at a time, and not while another thread looks up a global
+//! export: mapping loads the libraries the module depends on, and Gum can deadlock when a
+//! library is loaded during such a lookup.
 
 use {
     crate::{

@@ -2,10 +2,28 @@
 
 use frida_gum::{Gum, Module, NativeModuleResolver, PageProtection, ProcessMemory};
 use lazy_static::lazy_static;
-use std::{cell::RefCell, rc::Rc};
+use std::{
+    cell::RefCell,
+    rc::Rc,
+    sync::{Mutex, MutexGuard},
+};
 
 lazy_static! {
     static ref GUM: Gum = Gum::obtain();
+}
+
+/// Held by each test while it runs, so that they run one at a time.
+///
+/// On Windows, Gum looks up a global export with its list of modules locked, which needs the
+/// loader's lock, and is told of a library being loaded, under the loader's lock, by a callback
+/// that needs the list of modules. A test that looks up an export while another maps a library,
+/// which loads what the library depends on, can so leave both waiting for each other for good.
+static ONE_AT_A_TIME: Mutex<()> = Mutex::new(());
+
+fn alone() -> MutexGuard<'static, ()> {
+    ONE_AT_A_TIME
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
 /// A function every process has loaded, by the name its system library exports it under.
@@ -19,6 +37,7 @@ const PAGE: usize = 0x4000;
 
 #[test]
 fn local_memory_is_this_process() {
+    let _alone = alone();
     let memory = ProcessMemory::local(&GUM);
 
     assert_eq!(memory.pid(), std::process::id());
@@ -27,6 +46,7 @@ fn local_memory_is_this_process() {
 
 #[test]
 fn remote_memory_keeps_the_handle_it_was_given() {
+    let _alone = alone();
     let handle = 0x1234 as *mut std::ffi::c_void;
 
     // SAFETY: the handle is only stored and read back.
@@ -38,6 +58,7 @@ fn remote_memory_keeps_the_handle_it_was_given() {
 
 #[test]
 fn allocated_memory_can_be_written_read_and_protected() {
+    let _alone = alone();
     let memory = ProcessMemory::local(&GUM);
     let address = memory.alloc(PAGE, PAGE).expect("memory to allocate");
 
@@ -60,6 +81,7 @@ fn allocated_memory_can_be_written_read_and_protected() {
 
 #[test]
 fn memory_can_be_allocated_near_an_address() {
+    let _alone = alone();
     let memory = ProcessMemory::local(&GUM);
     let anchor = memory.alloc(PAGE, PAGE).unwrap();
     let max_distance = 0x4000_0000;
@@ -79,6 +101,7 @@ fn memory_can_be_allocated_near_an_address() {
 
 #[test]
 fn mapped_memory_holds_the_data_under_the_protection_asked_for() {
+    let _alone = alone();
     let memory = ProcessMemory::local(&GUM);
     let address = memory.alloc(PAGE, PAGE).unwrap();
 
@@ -100,6 +123,7 @@ fn mapped_memory_holds_the_data_under_the_protection_asked_for() {
 
 #[test]
 fn code_written_to_memory_can_be_marked_executable() {
+    let _alone = alone();
     let memory = ProcessMemory::local(&GUM);
     let address = memory.alloc(PAGE, PAGE).unwrap();
 
@@ -113,6 +137,7 @@ fn code_written_to_memory_can_be_marked_executable() {
 
 #[test]
 fn resolver_finds_what_the_loader_exports() {
+    let _alone = alone();
     let resolver = NativeModuleResolver::new(&GUM);
     let expected = Module::find_global_export_by_name(SYSTEM_FUNCTION).map(|p| p.0 as u64);
 
@@ -136,6 +161,7 @@ fn resolver_finds_what_the_loader_exports() {
 
 #[test]
 fn resolver_asks_its_lookup_handler_first() {
+    let _alone = alone();
     let resolver = NativeModuleResolver::new(&GUM);
     let unhandled = resolver.find_dynamic_address(SYSTEM_FUNCTION);
     let asked = Rc::new(RefCell::new(Vec::new()));
@@ -166,6 +192,7 @@ fn resolver_asks_its_lookup_handler_first() {
 
 #[test]
 fn dropping_the_resolver_destroys_its_lookup_handler() {
+    let _alone = alone();
     let held = Rc::new(());
     let held_by_handler = Rc::clone(&held);
     let resolver = NativeModuleResolver::new(&GUM);
@@ -181,6 +208,7 @@ fn dropping_the_resolver_destroys_its_lookup_handler() {
 
 #[test]
 fn resolver_finds_a_loaded_module_and_none_that_does_not_exist() {
+    let _alone = alone();
     let resolver = NativeModuleResolver::new(&GUM);
     let loaded = frida_gum::Process::obtain(&GUM).main_module().name();
 
@@ -208,6 +236,7 @@ mod on_windows {
 
     #[test]
     fn maps_a_library_and_takes_it_out_again() {
+        let _alone = alone();
         const EXTRA: usize = 0x1000;
         let resolver = NativeModuleResolver::new(&GUM);
         let mapper = Mapper::from_file(&version_dll(), &resolver).expect("a mapper for a DLL");
@@ -250,6 +279,7 @@ mod on_windows {
 
     #[test]
     fn maps_a_library_held_in_memory() {
+        let _alone = alone();
         let resolver = NativeModuleResolver::new(&GUM);
         let bytes = std::fs::read(version_dll()).unwrap();
         let mapper = Mapper::from_bytes("version.dll", &bytes, &resolver).expect("a mapper");
@@ -265,6 +295,7 @@ mod on_windows {
 
     #[test]
     fn maps_into_the_target_it_is_given() {
+        let _alone = alone();
         let resolver = NativeModuleResolver::new(&GUM);
         let mapper = Mapper::from_file(&version_dll(), &resolver).unwrap();
         mapper.set_target(&ProcessMemory::local(&GUM));
@@ -279,6 +310,7 @@ mod on_windows {
 
     #[test]
     fn has_no_mapper_for_what_is_not_a_library() {
+        let _alone = alone();
         let resolver = NativeModuleResolver::new(&GUM);
         let missing = std::env::temp_dir().join("frida-gum-mapper-no-such-file.dll");
 
