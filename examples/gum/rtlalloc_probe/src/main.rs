@@ -17,8 +17,8 @@ fn main() {
     let gum = Gum::obtain();
     let mut interceptor = Interceptor::obtain(&gum);
 
-    let target = Module::find_global_export_by_name("RtlAllocateHeap")
-        .expect("RtlAllocateHeap not found");
+    let target =
+        Module::find_global_export_by_name("RtlAllocateHeap").expect("RtlAllocateHeap not found");
 
     let orig = interceptor
         .replace(
