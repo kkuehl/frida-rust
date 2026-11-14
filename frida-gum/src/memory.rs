@@ -215,6 +215,26 @@ impl Memory {
         }
     }
 
+    /// Query the region of memory `address` is in: the range of pages around it that are mapped
+    /// alike, and their protection. `None` if nothing is mapped there.
+    ///
+    /// Added in Frida 17.19.
+    pub fn query_region(address: NativePointer) -> Option<(MemoryRange, PageProtection)> {
+        let mut range = gum_sys::GumMemoryRange {
+            base_address: 0,
+            size: 0,
+        };
+        let mut prot: gum_sys::GumPageProtection = 0;
+        let found = unsafe { gum_sys::gum_memory_query_region(address.0, &mut range, &mut prot) };
+        if found == 0 {
+            return None;
+        }
+        Some((
+            MemoryRange::from_raw(&range),
+            num::FromPrimitive::from_u32(prot)?,
+        ))
+    }
+
     /// Check if memory at the specified address is readable.
     ///
     /// # Safety
@@ -426,6 +446,36 @@ impl Memory {
 
             results
         }
+    }
+
+    /// Stop the CPU from checking memory tags on this thread, so that memory tagged for another
+    /// owner can be accessed, until [`Memory::resume_tag_checks`]. Does nothing unless the CPU
+    /// has the Memory Tagging Extension.
+    pub fn suspend_tag_checks() {
+        unsafe { gum_sys::gum_suspend_tag_checks() };
+    }
+
+    /// Undo [`Memory::suspend_tag_checks`].
+    pub fn resume_tag_checks() {
+        unsafe { gum_sys::gum_resume_tag_checks() };
+    }
+
+    /// Route Gum's own memory management through `hooks`, or back to the system with `None`.
+    /// The hooks are copied.
+    ///
+    /// Gum calls `allocate` where it would allocate executable memory, `protect` where it would
+    /// change the protection of pages, and `patch_code` where it would write to code. A hook
+    /// left as `None` leaves that operation to the system.
+    ///
+    /// # Safety
+    ///
+    /// The hooks must do what Gum would have: return usable memory, apply the protection, and
+    /// write the code. They and their `user_data` must stay valid until the hooks are replaced,
+    /// and no other thread may be using Gum while they are.
+    pub unsafe fn set_hooks(hooks: Option<&gum_sys::GumMemoryHooks>) {
+        unsafe {
+            gum_sys::gum_memory_set_hooks(hooks.map_or(core::ptr::null(), core::ptr::from_ref))
+        };
     }
 
     /// Check if writable pages can be remapped.

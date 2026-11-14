@@ -1,12 +1,12 @@
 //! Live-runtime tests exercising [`Gum`], [`Process`], [`Module`], and
 //! [`MemoryRange`] against the running test process itself.
 //!
-//! These tests are deliberately conservative ΓÇö they only inspect state,
-//! never patch code ΓÇö so they don't need extra privileges and don't
+//! These tests are deliberately conservative — they only inspect state,
+//! never patch code — so they don't need extra privileges and don't
 //! interfere with each other. They still share the process-wide `Gum`
 //! singleton via `lazy_static!`.
 
-use frida_gum::{Gum, MemoryRange, NativePointer, PageProtection, Process};
+use frida_gum::{Gum, Memory, MemoryRange, NativePointer, PageProtection, Process};
 use lazy_static::lazy_static;
 use std::ffi::c_void;
 
@@ -156,4 +156,80 @@ fn enumerate_readable_ranges_returns_pages() {
         !ranges.is_empty(),
         "at least one PageProtection::Read range must exist"
     );
+}
+
+#[test]
+fn memory_query_region_finds_the_region_an_address_is_in() {
+    let _gum = &*GUM;
+    let on_the_stack = 0u8;
+    let address = &on_the_stack as *const u8 as usize;
+
+    let (range, protection) =
+        Memory::query_region(NativePointer(address as *mut c_void)).expect("the stack is mapped");
+
+    let base = range.base_address().0 as usize;
+    assert!(
+        base <= address && address < base + range.size(),
+        "{address:#x} should be in {base:#x}+{:#x}",
+        range.size()
+    );
+    assert_eq!(protection, PageProtection::ReadWrite);
+}
+
+#[test]
+fn memory_query_region_reports_code_as_executable() {
+    let _gum = &*GUM;
+    let code = memory_query_region_reports_code_as_executable as *const c_void;
+
+    let (_, protection) =
+        Memory::query_region(NativePointer(code as *mut c_void)).expect("code is mapped");
+
+    assert_eq!(protection, PageProtection::ReadExecute);
+}
+
+#[test]
+fn tag_checks_can_be_suspended_and_resumed() {
+    let _gum = &*GUM;
+
+    Memory::suspend_tag_checks();
+    let read_meanwhile = std::hint::black_box(42);
+    Memory::resume_tag_checks();
+
+    assert_eq!(read_meanwhile, 42);
+}
+
+#[test]
+fn exports_with_a_prefix_are_the_exports_whose_names_start_with_it() {
+    let p = Process::obtain(&GUM);
+    let (module, exports) = p
+        .enumerate_modules()
+        .into_iter()
+        .find_map(|module| {
+            let exports = module.enumerate_exports();
+            exports
+                .iter()
+                .any(|export| export.name.len() >= 3 && export.name.is_ascii())
+                .then_some((module, exports))
+        })
+        .expect("some loaded module has exports");
+    let prefix = exports
+        .iter()
+        .find(|export| export.name.len() >= 3 && export.name.is_ascii())
+        .unwrap()
+        .name[..3]
+        .to_owned();
+    let prefix = prefix.as_str();
+    let names = |exports: Vec<frida_gum::ExportDetails>| {
+        let mut names: Vec<_> = exports.into_iter().map(|export| export.name).collect();
+        names.sort();
+        names
+    };
+
+    let with_prefix = names(module.enumerate_exports_with_prefix(prefix));
+
+    let mut expected = names(exports);
+    expected.retain(|name| name.starts_with(prefix));
+    assert!(!with_prefix.is_empty());
+    assert_eq!(with_prefix, expected);
+    assert!(module.enumerate_exports_with_prefix("\0").is_empty());
 }

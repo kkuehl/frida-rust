@@ -280,6 +280,42 @@ impl Module {
         result
     }
 
+    /// Enumerates the exports of the module whose names start with `prefix`.
+    pub fn enumerate_exports_with_prefix(&self, prefix: &str) -> Vec<ExportDetails> {
+        let mut result: Vec<ExportDetails> = vec![];
+        let Ok(prefix) = CString::new(prefix) else {
+            // No name has a NUL in it.
+            return result;
+        };
+
+        unsafe extern "C" fn callback(
+            details: *const GumExportDetails,
+            user_data: gpointer,
+        ) -> gboolean {
+            unsafe {
+                let res = &mut *(user_data as *mut Vec<ExportDetails>);
+                let name: String = NativePointer((*details).name as *mut _)
+                    .try_into()
+                    .unwrap_or_default();
+
+                let address = (*details).address as usize;
+                let typ = num::FromPrimitive::from_u32((*details).type_ as u32).unwrap();
+                res.push(ExportDetails { typ, name, address });
+                1
+            }
+        }
+
+        unsafe {
+            frida_gum_sys::gum_module_enumerate_exports_with_prefix(
+                self.inner,
+                prefix.as_ptr().cast(),
+                Some(callback),
+                &mut result as *mut _ as *mut c_void,
+            );
+        }
+        result
+    }
+
     /// Enumerates symbols in module.
     pub fn enumerate_symbols(&self) -> Vec<SymbolDetails> {
         let mut result: Vec<SymbolDetails> = vec![];

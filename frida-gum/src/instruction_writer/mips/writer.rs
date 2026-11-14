@@ -229,6 +229,19 @@ impl MipsInstructionWriter {
         }
     }
 
+    /// Write a load word instruction that loads 32 bits whatever the size of a pointer, where
+    /// [`Self::put_lw_reg_reg_offset`] loads a doubleword on MIPS64.
+    pub fn put_lw32_reg_reg_offset(&self, dst_reg: mips_reg, src_reg: mips_reg, src_offset: usize) {
+        unsafe {
+            gum_sys::gum_mips_writer_put_lw32_reg_reg_offset(
+                self.writer,
+                dst_reg,
+                src_reg,
+                src_offset,
+            )
+        }
+    }
+
     /// Write a store word instruction.
     pub fn put_sw_reg_reg_offset(&self, src_reg: mips_reg, dst_reg: mips_reg, dst_offset: usize) {
         unsafe {

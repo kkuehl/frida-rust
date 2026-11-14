@@ -36,6 +36,7 @@ spin = { version = "0.10", default-features = false, features = [
 bitflags = "2.10.0"
 
 [dev-dependencies]
+frida-gum-sys = { path = "../frida-gum-sys", version = "0.17.2" }
 lazy_static = "1"
 
 [badges]

@@ -94,6 +94,17 @@ impl Aarch64InstructionWriter {
         unsafe { gum_sys::gum_arm64_writer_put_brk_imm(self.writer, imm) }
     }
 
+    /// Insert a `svc #i` instruction.
+    pub fn put_svc_imm(&self, imm: u16) {
+        unsafe { gum_sys::gum_arm64_writer_put_svc_imm(self.writer, imm) }
+    }
+
+    /// Insert a `paciza reg` instruction, which signs the address in `reg` with key A and a zero
+    /// modifier. Returns `false`, writing nothing, if `reg` is not a 64-bit register.
+    pub fn put_paciza_reg(&self, reg: Aarch64Register) -> bool {
+        unsafe { gum_sys::gum_arm64_writer_put_paciza_reg(self.writer, reg as u32) != 0 }
+    }
+
     /// Insert a `sub d, l, r` instruction.
     pub fn put_sub_reg_reg_imm(
         &self,

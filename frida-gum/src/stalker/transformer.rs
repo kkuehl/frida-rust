@@ -155,6 +155,17 @@ impl<'a> Instruction<'a> {
         unsafe { frida_gum_sys::gum_stalker_iterator_get_capstone(self.parent) }
     }
 
+    /// Reserve a register that this instruction does not use to hold this thread's user data,
+    /// the pointer the transformer gives Stalker for each thread it follows, and get it as a
+    /// capstone register.
+    ///
+    /// Unless a register is already reserved, this writes code that saves the register and
+    /// loads the pointer into it. The register is given back, and its value restored, before
+    /// the first instruction that uses it and at the end of the block.
+    pub fn user_data_reg(&self) -> frida_gum_sys::GumCpuReg {
+        unsafe { frida_gum_sys::gum_stalker_iterator_get_user_data_reg(self.parent) }
+    }
+
     /// Get the memory-access category of this instruction.
     pub fn memory_access(&self) -> MemoryAccess {
         let raw = unsafe { frida_gum_sys::gum_stalker_iterator_get_memory_access(self.parent) };
