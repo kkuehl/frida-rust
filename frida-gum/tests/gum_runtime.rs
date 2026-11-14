@@ -1,8 +1,8 @@
 //! Live-runtime tests exercising [`Gum`], [`Process`], [`Module`], and
 //! [`MemoryRange`] against the running test process itself.
 //!
-//! These tests are deliberately conservative — they only inspect state,
-//! never patch code — so they don't need extra privileges and don't
+//! These tests are deliberately conservative ΓÇö they only inspect state,
+//! never patch code ΓÇö so they don't need extra privileges and don't
 //! interfere with each other. They still share the process-wide `Gum`
 //! singleton via `lazy_static!`.
 
@@ -11,7 +11,14 @@ use lazy_static::lazy_static;
 use std::ffi::c_void;
 
 lazy_static! {
-    static ref GUM: Gum = Gum::obtain();
+    static ref GUM: Gum = {
+        let gum = Gum::obtain();
+        // Gum lists the loaded modules the first time it is asked about them, and a thread that
+        // asks while another is still listing gets the list so far. Ask here, where only one
+        // thread can be, so that every test sees all of them.
+        Process::obtain(&gum).enumerate_modules();
+        gum
+    };
 }
 
 #[test]
