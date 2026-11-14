@@ -237,7 +237,7 @@ fn a_linux_kernel_config_needs_its_kernel() {
     image.set_kernel(&map);
     drop(map);
 
-    assert_eq!(without_kernel.0, false);
+    assert!(!without_kernel.0);
     assert!(
         without_kernel
             .1
@@ -267,7 +267,7 @@ fn an_xnu_kernelcache_config_needs_its_kernelcache() {
     let from_bytes = (image.kernelcache().is_some(), complaint(image.check()));
     image.set_kernelcache(&XnuKernelcache::open(path.to_str().unwrap()).unwrap());
 
-    assert_eq!(without_kernelcache.0, false);
+    assert!(!without_kernelcache.0);
     assert!(
         without_kernelcache
             .1
