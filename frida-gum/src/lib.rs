@@ -86,10 +86,8 @@ pub use pe_module::*;
 mod module_map;
 pub use module_map::*;
 
-#[cfg(target_os = "macos")]
-mod darwin_module;
-#[cfg(target_os = "macos")]
-pub use darwin_module::*;
+mod macho_module;
+pub use macho_module::*;
 
 mod process;
 pub use process::*;
