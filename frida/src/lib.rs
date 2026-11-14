@@ -37,6 +37,9 @@ pub use kernel::*;
 mod language_server;
 pub use language_server::*;
 
+mod pattern;
+pub use pattern::*;
+
 mod process;
 pub use process::*;
 

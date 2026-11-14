@@ -100,6 +100,15 @@ pub enum Error {
         message: String,
     },
 
+    /// A pattern could not be compiled, or data could not be decoded with it.
+    #[error("Pattern operation failed ({code}) {message}")]
+    PatternFailed {
+        /// Error code
+        code: i32,
+        /// Error message
+        message: String,
+    },
+
     /// A Barebone configuration cannot be used as it is.
     #[error("Barebone config is invalid ({code}) {message}")]
     BareboneConfigInvalid {
