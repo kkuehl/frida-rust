@@ -100,6 +100,24 @@ pub enum Error {
         message: String,
     },
 
+    /// A Barebone configuration cannot be used as it is.
+    #[error("Barebone config is invalid ({code}) {message}")]
+    BareboneConfigInvalid {
+        /// Error code
+        code: i32,
+        /// Error message
+        message: String,
+    },
+
+    /// A kernel image, a System.map or a kernelcache could not be read.
+    #[error("Failed to read kernel ({code}) {message}")]
+    KernelReadFailed {
+        /// Error code
+        code: i32,
+        /// Error message
+        message: String,
+    },
+
     /// Received unexpected RPC message.
     #[error("Unexpected RPC message received.")]
     RpcUnexpectedMessage,
@@ -111,4 +129,40 @@ pub enum Error {
         /// Error message from JavaScript.
         message: String,
     },
+}
+
+/// Takes the code and the message out of `error`, and frees it.
+///
+/// # Safety
+///
+/// `error` must be a `GError` that the caller owns.
+pub(crate) unsafe fn take_gerror(error: *mut frida_sys::GError) -> (i32, String) {
+    unsafe {
+        let code = (*error).code;
+        let message = if (*error).message.is_null() {
+            String::new()
+        } else {
+            std::ffi::CStr::from_ptr((*error).message)
+                .to_string_lossy()
+                .into_owned()
+        };
+        frida_sys::g_error_free(error);
+        (code, message)
+    }
+}
+
+/// The text at `text`, or `None` for a null pointer.
+///
+/// # Safety
+///
+/// A non-null `text` must point at a NUL-terminated string.
+pub(crate) unsafe fn string_at(text: *const std::os::raw::c_char) -> Option<String> {
+    if text.is_null() {
+        return None;
+    }
+    Some(
+        unsafe { std::ffi::CStr::from_ptr(text) }
+            .to_string_lossy()
+            .into_owned(),
+    )
 }

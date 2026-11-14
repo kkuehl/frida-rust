@@ -31,6 +31,9 @@ pub use error::Error;
 mod injector;
 pub use injector::*;
 
+mod kernel;
+pub use kernel::*;
+
 mod language_server;
 pub use language_server::*;
 

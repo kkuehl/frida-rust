@@ -12,7 +12,8 @@
 //! parse cache with [`LanguageServer`](crate::LanguageServer).
 
 use frida_sys::{
-    _FridaBuildOptions, _FridaCompiler, _FridaCompilerOptions, _FridaWatchOptions, GError,
+    _FridaBuildOptions, _FridaCompiler, _FridaCompilerOptions, _FridaLibraryOptions,
+    _FridaWatchOptions, GError,
 };
 use std::ffi::{CStr, CString};
 use std::marker::PhantomData;
@@ -233,6 +234,64 @@ impl Drop for WatchOptions {
     }
 }
 
+/// Options for [`Compiler::build_library`] and [`Compiler::watch_library`].
+pub struct LibraryOptions {
+    ptr: *mut _FridaLibraryOptions,
+}
+
+impl LibraryOptions {
+    /// Create options with the defaults: the project root is inferred from the entrypoint, and
+    /// source maps are emitted.
+    pub fn new() -> Self {
+        Self {
+            ptr: unsafe { frida_sys::frida_library_options_new() },
+        }
+    }
+
+    /// The project root, or `None` where it is to be inferred from the entrypoint.
+    pub fn project_root(&self) -> Option<String> {
+        unsafe {
+            crate::error::string_at(frida_sys::frida_library_options_get_project_root(self.ptr))
+        }
+    }
+
+    /// Set the project root. A path with a NUL in it is ignored.
+    pub fn set_project_root(&self, path: &str) {
+        if let Ok(path) = CString::new(path) {
+            unsafe { frida_sys::frida_library_options_set_project_root(self.ptr, path.as_ptr()) };
+        }
+    }
+
+    /// Whether source maps are emitted next to the modules.
+    pub fn source_maps(&self) -> SourceMaps {
+        let raw = unsafe { frida_sys::frida_library_options_get_source_maps(self.ptr) };
+        if raw == frida_sys::FridaSourceMaps_FRIDA_SOURCE_MAPS_OMITTED {
+            SourceMaps::Omitted
+        } else {
+            SourceMaps::Included
+        }
+    }
+
+    /// Set whether source maps are emitted next to the modules.
+    pub fn set_source_maps(&self, source_maps: SourceMaps) {
+        unsafe {
+            frida_sys::frida_library_options_set_source_maps(self.ptr, source_maps as u32 as _)
+        };
+    }
+}
+
+impl Default for LibraryOptions {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Drop for LibraryOptions {
+    fn drop(&mut self) {
+        unsafe { frida_sys::frida_unref(self.ptr as _) }
+    }
+}
+
 /// Compiles a TypeScript or JavaScript project into a single script bundle.
 ///
 /// Wraps `Frida.Compiler` (see `frida-core`), which in 17.18.0 was upgraded to
@@ -321,6 +380,73 @@ impl<'a> Compiler<'a> {
                 .into_owned();
             let code = unsafe { (*error).code };
             unsafe { frida_sys::g_error_free(error) };
+            return Err(Error::CompilerBuildFailed { code, message });
+        }
+
+        Ok(())
+    }
+
+    /// Build the library rooted at `entrypoint` into `output_dir`: a module and a declaration
+    /// file for each source file, ready for other projects to import. `output_dir` is relative
+    /// to the project root unless it is absolute.
+    pub fn build_library(
+        &self,
+        entrypoint: &str,
+        output_dir: &str,
+        options: Option<&LibraryOptions>,
+    ) -> Result<()> {
+        let entrypoint = CString::new(entrypoint).map_err(|_| Error::CStringFailed)?;
+        let output_dir = CString::new(output_dir).map_err(|_| Error::CStringFailed)?;
+        let opts_ptr = options.map(|o| o.ptr).unwrap_or(std::ptr::null_mut());
+
+        let mut error: *mut GError = std::ptr::null_mut();
+        unsafe {
+            frida_sys::frida_compiler_build_library_sync(
+                self.ptr,
+                entrypoint.as_ptr(),
+                output_dir.as_ptr(),
+                opts_ptr,
+                std::ptr::null_mut(),
+                &mut error,
+            )
+        };
+
+        if !error.is_null() {
+            let (code, message) = unsafe { crate::error::take_gerror(error) };
+            return Err(Error::CompilerBuildFailed { code, message });
+        }
+
+        Ok(())
+    }
+
+    /// Build the library like [`Compiler::build_library`], and keep rebuilding it into
+    /// `output_dir` as its sources change. This returns once the watch is set up: the first
+    /// build, like those that follow, finishes later, which the compiler's `finished` signal
+    /// tells. The watch stops when the compiler is dropped.
+    pub fn watch_library(
+        &self,
+        entrypoint: &str,
+        output_dir: &str,
+        options: Option<&LibraryOptions>,
+    ) -> Result<()> {
+        let entrypoint = CString::new(entrypoint).map_err(|_| Error::CStringFailed)?;
+        let output_dir = CString::new(output_dir).map_err(|_| Error::CStringFailed)?;
+        let opts_ptr = options.map(|o| o.ptr).unwrap_or(std::ptr::null_mut());
+
+        let mut error: *mut GError = std::ptr::null_mut();
+        unsafe {
+            frida_sys::frida_compiler_watch_library_sync(
+                self.ptr,
+                entrypoint.as_ptr(),
+                output_dir.as_ptr(),
+                opts_ptr,
+                std::ptr::null_mut(),
+                &mut error,
+            )
+        };
+
+        if !error.is_null() {
+            let (code, message) = unsafe { crate::error::take_gerror(error) };
             return Err(Error::CompilerBuildFailed { code, message });
         }
 
