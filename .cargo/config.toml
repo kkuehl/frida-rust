@@ -9,8 +9,11 @@
 [target.x86_64-pc-windows-msvc]
 rustflags = ["-C", "target-feature=+crt-static"]
 
+# The 32-bit frida-core devkit has objects built by Go and by MinGW, which carry
+# no table of safe exception handlers. Rust asks the linker for a SAFESEH
+# image, which it refuses to make from them (LNK2026, LNK1281).
 [target.i686-pc-windows-msvc]
-rustflags = ["-C", "target-feature=+crt-static"]
+rustflags = ["-C", "target-feature=+crt-static", "-C", "link-arg=/SAFESEH:NO"]
 
 [target.aarch64-pc-windows-msvc]
 rustflags = ["-C", "target-feature=+crt-static"]

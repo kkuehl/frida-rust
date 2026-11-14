@@ -162,8 +162,14 @@ impl<'a> Instruction<'a> {
     /// Unless a register is already reserved, this writes code that saves the register and
     /// loads the pointer into it. The register is given back, and its value restored, before
     /// the first instruction that uses it and at the end of the block.
-    pub fn user_data_reg(&self) -> frida_gum_sys::GumCpuReg {
-        unsafe { frida_gum_sys::gum_stalker_iterator_get_user_data_reg(self.parent) }
+    ///
+    /// Returns `None` where Gum has no register to spare: it chooses among a few, only two of
+    /// them on 32-bit x86, and this instruction uses them all.
+    pub fn user_data_reg(&self) -> Option<frida_gum_sys::GumCpuReg> {
+        let register =
+            unsafe { frida_gum_sys::gum_stalker_iterator_get_user_data_reg(self.parent) };
+        // Zero is capstone's invalid register on every architecture.
+        (register as i64 != 0).then_some(register)
     }
 
     /// Get the memory-access category of this instruction.

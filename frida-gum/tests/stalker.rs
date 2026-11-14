@@ -35,8 +35,10 @@ fn reserves_a_register_for_user_data_while_following_a_thread() {
         "the followed code computed what it would have"
     );
     assert!(!registers.is_empty(), "the transformer saw instructions");
+    // Not every instruction has one: Gum has few registers to choose among, two on 32-bit
+    // x86, and none is left by an instruction that uses them all.
     assert!(
-        registers.iter().all(|register| *register != 0),
-        "every instruction had a register to spare"
+        registers.iter().any(|register| register.is_some()),
+        "some instruction had a register to spare"
     );
 }
