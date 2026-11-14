@@ -14,14 +14,17 @@
 //! can call a single stable name regardless of platform (mirroring the existing
 //! `_frida_g_get_*_dir` handling in [`crate::process`]).
 
-use frida_gum_sys::{GArray, GError, GPtrArray, gboolean, gchar, gpointer, guint};
+use frida_gum_sys::{
+    GArray, GBytes, GError, GPtrArray, gboolean, gchar, gconstpointer, gpointer, gsize, guint,
+};
 
 #[cfg(any(target_os = "linux", target_os = "freebsd"))]
 mod sys {
     pub use frida_gum_sys::{
-        _frida_g_array_free as g_array_free, _frida_g_error_free as g_error_free,
-        _frida_g_free as g_free, _frida_g_ptr_array_add as g_ptr_array_add,
-        _frida_g_ptr_array_free as g_ptr_array_free,
+        _frida_g_array_free as g_array_free, _frida_g_bytes_get_data as g_bytes_get_data,
+        _frida_g_bytes_new as g_bytes_new, _frida_g_bytes_unref as g_bytes_unref,
+        _frida_g_error_free as g_error_free, _frida_g_free as g_free,
+        _frida_g_ptr_array_add as g_ptr_array_add, _frida_g_ptr_array_free as g_ptr_array_free,
         _frida_g_ptr_array_sized_new as g_ptr_array_sized_new,
     };
 }
@@ -29,8 +32,8 @@ mod sys {
 #[cfg(not(any(target_os = "linux", target_os = "freebsd")))]
 mod sys {
     pub use frida_gum_sys::{
-        g_array_free, g_error_free, g_free, g_ptr_array_add, g_ptr_array_free,
-        g_ptr_array_sized_new,
+        g_array_free, g_bytes_get_data, g_bytes_new, g_bytes_unref, g_error_free, g_free,
+        g_ptr_array_add, g_ptr_array_free, g_ptr_array_sized_new,
     };
 }
 
@@ -48,9 +51,35 @@ pub unsafe fn g_free(mem: gpointer) {
 /// # Safety
 ///
 /// `error` must be a valid `GError` that has not already been freed.
-#[allow(dead_code)]
 pub unsafe fn g_error_free(error: *mut GError) {
     unsafe { sys::g_error_free(error) }
+}
+
+/// Create a `GBytes` holding a copy of `size` bytes at `data`.
+///
+/// # Safety
+///
+/// `data` must be readable for `size` bytes.
+pub unsafe fn g_bytes_new(data: gconstpointer, size: gsize) -> *mut GBytes {
+    unsafe { sys::g_bytes_new(data, size) }
+}
+
+/// The data a `GBytes` holds, with its length written to `size`.
+///
+/// # Safety
+///
+/// `bytes` must be a valid `GBytes` and `size` writable.
+pub unsafe fn g_bytes_get_data(bytes: *mut GBytes, size: *mut gsize) -> gconstpointer {
+    unsafe { sys::g_bytes_get_data(bytes, size) }
+}
+
+/// Release a reference to a `GBytes`.
+///
+/// # Safety
+///
+/// `bytes` must be a valid `GBytes` the caller holds a reference to.
+pub unsafe fn g_bytes_unref(bytes: *mut GBytes) {
+    unsafe { sys::g_bytes_unref(bytes) }
 }
 
 /// Free a `GArray`, optionally freeing the element segment.

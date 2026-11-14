@@ -80,6 +80,9 @@ pub use module::*;
 
 pub mod elf_module;
 
+mod pe_module;
+pub use pe_module::*;
+
 mod module_map;
 pub use module_map::*;
 
@@ -109,6 +112,8 @@ mod kernel;
 pub use kernel::*;
 
 mod glib_compat;
+
+mod enumeration;
 
 mod memory_range;
 pub use memory_range::*;
