@@ -37,6 +37,25 @@ pub(crate) fn enumerate_details<Raw>(
     enumerate(details_callout::<Raw>, &mut sink as *mut _ as gpointer);
 }
 
+/// The C callback for an enumeration that cannot be stopped, of `Raw` details whose user data is
+/// a `*mut &mut dyn FnMut(*const Raw)`.
+unsafe extern "C" fn every_details_callout<Raw>(details: *const Raw, user_data: gpointer) {
+    let sink = unsafe { &mut *(user_data as *mut &mut dyn FnMut(*const Raw)) };
+    sink(details);
+}
+
+/// Calls `enumerate` with the C callback and user data that hand every item it finds to `sink`.
+pub(crate) fn enumerate_every_details<Raw>(
+    mut sink: impl FnMut(*const Raw),
+    enumerate: impl FnOnce(unsafe extern "C" fn(*const Raw, gpointer), gpointer),
+) {
+    let mut sink: &mut dyn FnMut(*const Raw) = &mut sink;
+    enumerate(
+        every_details_callout::<Raw>,
+        &mut sink as *mut _ as gpointer,
+    );
+}
+
 /// Everything `enumerate` yields, collected.
 pub(crate) fn collected<Item>(enumerate: impl FnOnce(&mut dyn FnMut(Item) -> bool)) -> Vec<Item> {
     let mut items = Vec::new();

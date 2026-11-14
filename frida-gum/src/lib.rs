@@ -98,6 +98,9 @@ pub use module_resolver::*;
 mod mapper;
 pub use mapper::*;
 
+mod cmodule;
+pub use cmodule::*;
+
 mod process;
 pub use process::*;
 
