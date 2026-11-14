@@ -6,8 +6,6 @@
 
 //! The memory of a process, this one or another: allocate, read, write and protect it through
 //! one interface. It is what a [`Mapper`](crate::Mapper) maps a module into.
-//!
-//! Added in Frida 17.20.
 
 use {
     crate::{Gum, PageProtection},

@@ -8,8 +8,6 @@
 //! in memory, relocated and bound to what it imports, and the loader never hears of it.
 //!
 //! The module is in the platform's own format: PE on Windows, Mach-O on Darwin, ELF elsewhere.
-//!
-//! Added in Frida 17.20.
 
 use {
     crate::{

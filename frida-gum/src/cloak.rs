@@ -14,7 +14,10 @@
 //! detecting Frida's own threads and memory regions.
 
 use {
-    crate::{MemoryRange, NativePointer},
+    crate::{
+        MemoryRange, NativePointer,
+        gobject::{self, InterfaceType},
+    },
     core::ffi::c_void,
     frida_gum_sys as gum_sys,
 };
@@ -25,10 +28,84 @@ use alloc::{boxed::Box, vec::Vec};
 #[cfg(feature = "std")]
 use std::{boxed::Box, vec::Vec};
 
+/// Told when a thread is cloaked or uncloaked, on the thread that does it.
+pub trait CloakObserver: Send + Sync + 'static {
+    /// The thread `id` was cloaked.
+    fn thread_added(&self, id: usize);
+
+    /// The thread `id` was uncloaked.
+    fn thread_removed(&self, id: usize);
+}
+
+type BoxedCloakObserver = Box<dyn CloakObserver>;
+
+static CLOAK_OBSERVER_TYPE: InterfaceType = InterfaceType::new();
+
+unsafe extern "C" fn cloak_observer_interface_init(
+    interface: gum_sys::gpointer,
+    _data: gum_sys::gpointer,
+) {
+    let interface = unsafe { &mut *(interface as *mut gum_sys::GumCloakObserverInterface) };
+    interface.thread_added = Some(cloak_observer_thread_added);
+    interface.thread_removed = Some(cloak_observer_thread_removed);
+}
+
+unsafe extern "C" fn cloak_observer_thread_added(
+    observer: *mut gum_sys::GumCloakObserver,
+    id: gum_sys::GumThreadId,
+) {
+    // SAFETY: Gum holds a reference to the observer while it calls this.
+    unsafe { gobject::data::<BoxedCloakObserver>(observer.cast()) }.thread_added(id as usize);
+}
+
+unsafe extern "C" fn cloak_observer_thread_removed(
+    observer: *mut gum_sys::GumCloakObserver,
+    id: gum_sys::GumThreadId,
+) {
+    // SAFETY: as above.
+    unsafe { gobject::data::<BoxedCloakObserver>(observer.cast()) }.thread_removed(id as usize);
+}
+
+/// Keeps a [`CloakObserver`] observing: dropping it stops the observer being told, and destroys
+/// it once any call to it that is under way has returned.
+pub struct CloakObserverRegistration {
+    observer: *mut gum_sys::GumCloakObserver,
+}
+
+impl Drop for CloakObserverRegistration {
+    fn drop(&mut self) {
+        unsafe {
+            // Releases the cloak's reference, then ours.
+            gum_sys::gum_cloak_remove_observer(self.observer);
+            gum_sys::g_object_unref(self.observer as *mut c_void);
+        }
+    }
+}
+
+// SAFETY: the observer is `Send + Sync`, and adding and removing it are thread-safe.
+unsafe impl Send for CloakObserverRegistration {}
+unsafe impl Sync for CloakObserverRegistration {}
+
 /// Static interface to Frida's cloak machinery.
 pub struct Cloak;
 
 impl Cloak {
+    /// Have `observer` told whenever a thread is cloaked or uncloaked, for as long as the
+    /// returned registration is kept.
+    pub fn add_observer(observer: impl CloakObserver) -> CloakObserverRegistration {
+        let observer: BoxedCloakObserver = Box::new(observer);
+        unsafe {
+            let object_type = CLOAK_OBSERVER_TYPE.get(
+                "CloakObserver",
+                gum_sys::gum_cloak_observer_get_type(),
+                cloak_observer_interface_init,
+            );
+            let observer = gobject::new_object(object_type, observer).cast();
+            gum_sys::gum_cloak_add_observer(observer);
+            CloakObserverRegistration { observer }
+        }
+    }
+
     /// Hide the specified thread from enumeration.
     pub fn add_thread(id: usize) {
         unsafe { gum_sys::gum_cloak_add_thread(id as gum_sys::GumThreadId) };

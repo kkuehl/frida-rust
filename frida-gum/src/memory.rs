@@ -217,8 +217,6 @@ impl Memory {
 
     /// Query the region of memory `address` is in: the range of pages around it that are mapped
     /// alike, and their protection. `None` if nothing is mapped there.
-    ///
-    /// Added in Frida 17.19.
     pub fn query_region(address: NativePointer) -> Option<(MemoryRange, PageProtection)> {
         let mut range = gum_sys::GumMemoryRange {
             base_address: 0,

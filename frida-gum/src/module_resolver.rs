@@ -6,8 +6,6 @@
 
 //! Resolving the modules and symbols that a module being mapped by a [`Mapper`](crate::Mapper)
 //! depends on.
-//!
-//! Added in Frida 17.20.
 
 use {
     crate::{Gum, Module, enumeration::string_at},

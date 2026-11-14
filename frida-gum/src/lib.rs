@@ -122,6 +122,8 @@ mod glib_compat;
 
 mod enumeration;
 
+mod gobject;
+
 mod memory_range;
 pub use memory_range::*;
 
