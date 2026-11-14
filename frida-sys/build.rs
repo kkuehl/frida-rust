@@ -10,10 +10,6 @@ use std::env;
 use std::path::PathBuf;
 
 fn main() {
-    println!(
-        "cargo:rustc-link-search={}",
-        env::var("CARGO_MANIFEST_DIR").unwrap()
-    );
     let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap();
     let target_vendor = env::var("CARGO_CFG_TARGET_VENDOR").unwrap();
 
@@ -23,8 +19,16 @@ fn main() {
         download_and_use_devkit("core", include_str!("FRIDA_VERSION").trim())
     };
 
+    // Where a devkit placed by hand is looked for. With `auto-download` the downloaded devkit is
+    // the only source of the header and the library: a devkit left in the crate directory is a
+    // different Frida version, and would otherwise be found first.
     #[cfg(not(feature = "auto-download"))]
-    println!("cargo:rustc-link-lib=frida-core");
+    let include_dir = {
+        let manifest_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
+        println!("cargo:rustc-link-search={manifest_dir}");
+        println!("cargo:rustc-link-lib=frida-core");
+        manifest_dir
+    };
 
     if target_os == "linux" {
         println!("cargo:rustc-link-lib=pthread");
@@ -48,19 +52,16 @@ fn main() {
 
     let bindings = bindgen::Builder::default();
 
-    #[cfg(feature = "auto-download")]
-    let bindings = bindings.clang_arg(format!("-I{include_dir}"));
-
-    #[cfg(not(feature = "auto-download"))]
-    let bindings = if std::env::var("DOCS_RS").is_ok() {
+    // Angle brackets take the header from this directory, never from beside the build script.
+    let bindings = if cfg!(not(feature = "auto-download")) && std::env::var("DOCS_RS").is_ok() {
         bindings.clang_arg("-Iinclude")
     } else {
-        bindings
+        bindings.clang_arg(format!("-I{include_dir}"))
     };
 
     let bindings = bindings
         .formatter(bindgen::Formatter::Prettyplease)
-        .header_contents("core.h", "#include \"frida-core.h\"")
+        .header_contents("core.h", "#include <frida-core.h>")
         // These libc declarations leak in through the devkit headers and
         // collide with rustc's runtime-symbol lint (`usize` vs `u64`
         // signatures). The wrappers do not use them.
@@ -97,13 +98,18 @@ fn main() {
 /// for the target arch to provide it. Located via the target compiler's own resource dir, so it is
 /// NDK-version independent.
 fn link_android_compiler_rt_builtins() {
-    let arch = match env::var("CARGO_CFG_TARGET_ARCH").unwrap_or_default().as_str() {
+    let arch = match env::var("CARGO_CFG_TARGET_ARCH")
+        .unwrap_or_default()
+        .as_str()
+    {
         "aarch64" => "aarch64",
         "arm" => "arm",
         "x86_64" => "x86_64",
         "x86" => "i686",
         other => {
-            println!("cargo:warning=frida-sys: unknown android arch '{other}', not linking compiler-rt builtins");
+            println!(
+                "cargo:warning=frida-sys: unknown android arch '{other}', not linking compiler-rt builtins"
+            );
             return;
         }
     };

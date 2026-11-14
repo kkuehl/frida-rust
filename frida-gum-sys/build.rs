@@ -52,10 +52,15 @@ fn main() {
         println!("cargo:rerun-if-changed=stalker_params.h");
     }
 
-    println!(
-        "cargo:rustc-link-search={}",
-        env::var("CARGO_MANIFEST_DIR").unwrap()
-    );
+    // Where a devkit placed by hand is looked for. With `auto-download` the downloaded devkit is
+    // the only source of the header and the library: a devkit left in the crate directory is a
+    // different Frida version, and would otherwise be found first.
+    #[cfg(not(feature = "auto-download"))]
+    let include_dir = {
+        let manifest_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
+        println!("cargo:rustc-link-search={manifest_dir}");
+        manifest_dir
+    };
 
     #[cfg(feature = "auto-download")]
     let include_dir = {
@@ -82,24 +87,22 @@ fn main() {
         .use_core()
         .formatter(bindgen::Formatter::Prettyplease);
 
-    #[cfg(feature = "auto-download")]
-    let bindings = bindings.clang_arg(format!("-I{include_dir}"));
-
-    #[cfg(not(feature = "auto-download"))]
-    let bindings = if docs {
+    // The devkit header is included with angle brackets here and in the glue headers, so it is
+    // taken from these directories and never from beside the file that includes it.
+    let bindings = if cfg!(not(feature = "auto-download")) && docs {
         bindings.clang_arg("-Iinclude")
     } else {
-        bindings
+        bindings.clang_arg(format!("-I{include_dir}"))
     };
 
     let bindings = if use_gum_js {
         bindings
             .clang_arg("-DUSE_GUM_JS=1")
-            .header_contents("gum.h", "#include \"frida-gumjs.h\"")
+            .header_contents("gum.h", "#include <frida-gumjs.h>")
     } else {
         bindings
             .clang_arg("-DUSE_GUM_JS=0")
-            .header_contents("gum.h", "#include \"frida-gum.h\"")
+            .header_contents("gum.h", "#include <frida-gum.h>")
     };
 
     let bindings = bindings
@@ -135,15 +138,10 @@ fn main() {
     {
         let mut builder = cc::Build::new();
 
-        #[cfg(feature = "auto-download")]
-        #[allow(unused_mut)]
-        let mut builder = builder.include(include_dir.clone());
-
-        #[cfg(not(feature = "auto-download"))]
-        let builder = if docs {
+        let builder = if cfg!(not(feature = "auto-download")) && docs {
             builder.include("include")
         } else {
-            &mut builder
+            builder.include(&include_dir)
         };
 
         builder
@@ -157,15 +155,10 @@ fn main() {
     {
         let mut builder = cc::Build::new();
 
-        #[cfg(feature = "auto-download")]
-        #[allow(unused_mut)]
-        let mut builder = builder.include(include_dir.clone());
-
-        #[cfg(not(feature = "auto-download"))]
-        let builder = if docs {
+        let builder = if cfg!(not(feature = "auto-download")) && docs {
             builder.include("include")
         } else {
-            &mut builder
+            builder.include(&include_dir)
         };
 
         builder
@@ -176,15 +169,10 @@ fn main() {
 
         let mut builder = cc::Build::new();
 
-        #[cfg(feature = "auto-download")]
-        #[allow(unused_mut)]
-        let mut builder = builder.include(include_dir.clone());
-
-        #[cfg(not(feature = "auto-download"))]
-        let builder = if docs {
+        let builder = if cfg!(not(feature = "auto-download")) && docs {
             builder.include("include")
         } else {
-            &mut builder
+            builder.include(&include_dir)
         };
         builder
             .file("probe_listener.c")
@@ -197,15 +185,10 @@ fn main() {
     {
         let mut builder = cc::Build::new();
 
-        #[cfg(feature = "auto-download")]
-        #[allow(unused_mut)]
-        let mut builder = builder.include(include_dir.clone());
-
-        #[cfg(not(feature = "auto-download"))]
-        let builder = if docs {
+        let builder = if cfg!(not(feature = "auto-download")) && docs {
             builder.include("include")
         } else {
-            &mut builder
+            builder.include(&include_dir)
         };
 
         builder
@@ -219,15 +202,10 @@ fn main() {
     {
         let mut builder = cc::Build::new();
 
-        #[cfg(feature = "auto-download")]
-        #[allow(unused_mut)]
-        let mut builder = builder.include(include_dir);
-
-        #[cfg(not(feature = "auto-download"))]
-        let builder = if docs {
+        let builder = if cfg!(not(feature = "auto-download")) && docs {
             builder.include("include")
         } else {
-            &mut builder
+            builder.include(&include_dir)
         };
 
         builder
