@@ -4,7 +4,8 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
-//! Mach-O module inspection: enumerate segments, sections, symbols, exports and binds.
+//! Mach-O module inspection: enumerate segments, sections, symbols, exports, imports, binds,
+//! rebases, dependencies, and the initializers and thread-local variables an image declares.
 //!
 //! Added in Frida 17.16.0 as the Darwin module API, which Frida 17.25 renamed to Mach-O and made
 //! portable, so it reads Mach-O files on every platform Frida supports. [`Gum`](crate::Gum) must
@@ -12,13 +13,18 @@
 
 use {
     crate::{
-        enumeration::{Sink, collected, details_callout, string_at},
+        DependencyDetails, DependencyType, ImportDetails, ImportType,
+        enumeration::{Sink, collected, enumerate_details, string_at},
         glib_compat,
     },
-    core::{ffi::c_void, ptr},
+    core::{
+        ffi::{c_char, c_void},
+        mem::MaybeUninit,
+        ptr,
+    },
     cstr_core::CString,
     frida_gum_sys as gum_sys,
-    frida_gum_sys::{gchar, gpointer},
+    frida_gum_sys::{gboolean, gchar, gpointer},
 };
 
 #[cfg(not(feature = "std"))]
@@ -28,6 +34,22 @@ use alloc::{string::String, vec::Vec};
 fn name_in(field: &[gchar]) -> String {
     // SAFETY: gum copies these names with `g_strlcpy`, which always terminates them.
     unsafe { string_at(field.as_ptr()) }.unwrap_or_default()
+}
+
+/// Index of `segment` among the segments `first_segment` starts, or zero if either is null.
+///
+/// # Safety
+///
+/// A non-null `segment` must be an element of the array a non-null `first_segment` starts.
+unsafe fn segment_index(
+    segment: *const gum_sys::GumMachoSegment,
+    first_segment: *const gum_sys::GumMachoSegment,
+) -> u16 {
+    if segment.is_null() || first_segment.is_null() {
+        0
+    } else {
+        unsafe { segment.offset_from(first_segment) as u16 }
+    }
 }
 
 /// Mach-O segment details.
@@ -144,14 +166,9 @@ impl MachoBindDetails {
         first_segment: *const gum_sys::GumMachoSegment,
     ) -> Self {
         let details = unsafe { &*details };
-        let segment_index = if details.segment.is_null() || first_segment.is_null() {
-            0
-        } else {
-            // SAFETY: a bind's segment is an element of the array `first_segment` starts.
-            unsafe { details.segment.offset_from(first_segment) as u16 }
-        };
         Self {
-            segment_index,
+            // SAFETY: a bind's segment is one of the module's.
+            segment_index: unsafe { segment_index(details.segment, first_segment) },
             offset: details.offset,
             type_: details.type_,
             library_ordinal: details.library_ordinal as i16,
@@ -160,6 +177,170 @@ impl MachoBindDetails {
             addend: details.addend,
         }
     }
+}
+
+/// A place in a Mach-O image that holds an address to adjust when the image is not loaded at its
+/// preferred address.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MachoRebaseDetails {
+    /// Index of the segment the rebase is in, as [`MachoModule::segments`] orders them.
+    pub segment_index: u16,
+    /// Offset of the rebase in its segment.
+    pub offset: u64,
+    pub type_: u8,
+    /// How far the image is from its preferred address.
+    pub slide: u64,
+}
+
+/// Where a Mach-O image keeps a blob of its link-edit data: its chained fixups, or the starts of
+/// its functions.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MachoLinkeditData {
+    pub vm_address: u64,
+    pub file_offset: u64,
+    pub size: u32,
+}
+
+/// The chained fixups of a Mach-O image.
+pub type MachoChainedFixupsDetails = MachoLinkeditData;
+
+/// The function starts of a Mach-O image.
+pub type MachoFunctionStartsDetails = MachoLinkeditData;
+
+/// The thread-local variables a Mach-O image declares.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct MachoTlvParameters {
+    pub num_descriptors: u32,
+    /// File offset of the descriptors.
+    pub descriptors_offset: u32,
+    /// File offset of the variables' initial data.
+    pub data_offset: u32,
+    pub data_size: usize,
+    /// Size of the zero-filled data that follows the initial data.
+    pub bss_size: usize,
+}
+
+/// The descriptor of one thread-local variable.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MachoTlvDescriptorDetails {
+    /// File offset of the descriptor.
+    pub file_offset: u64,
+    pub thunk: u64,
+    pub key: u64,
+    /// Offset of the variable in the thread-local data.
+    pub offset: usize,
+}
+
+/// A table in a Mach-O image, by its address and how many entries it has: a section of
+/// initializer pointers, initializer offsets or terminator pointers.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MachoPointerTable {
+    pub address: u64,
+    pub count: u64,
+}
+
+/// A section of pointers to a Mach-O image's initializers.
+pub type MachoInitPointersDetails = MachoPointerTable;
+
+/// A section of 32-bit offsets to a Mach-O image's initializers.
+pub type MachoInitOffsetsDetails = MachoPointerTable;
+
+/// A section of pointers to a Mach-O image's terminators.
+pub type MachoTermPointersDetails = MachoPointerTable;
+
+/// An entry of a threaded bind, decoded from the 64 bits an arm64e image stores in the slot.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MachoThreadedItem {
+    pub is_authenticated: bool,
+    /// What the entry is: [`MachoThreadedItem::REBASE`] or [`MachoThreadedItem::BIND`].
+    pub type_: u8,
+    /// Distance to the next entry, in pointers. Zero for the last one.
+    pub delta: u16,
+    pub key: u8,
+    pub has_address_diversity: bool,
+    pub diversity: u16,
+    /// For a bind, the index of what to bind in the table of threaded binds. Zero for a rebase.
+    pub bind_ordinal: u16,
+    /// For a rebase, the address to adjust. Zero for a bind.
+    pub rebase_address: u64,
+}
+
+impl MachoThreadedItem {
+    pub const REBASE: u8 = gum_sys::_GumMachoThreadedItemType_GUM_MACHO_THREADED_REBASE as u8;
+    pub const BIND: u8 = gum_sys::_GumMachoThreadedItemType_GUM_MACHO_THREADED_BIND as u8;
+
+    /// Decodes the value in a threaded slot.
+    pub fn parse(value: u64) -> Self {
+        // Zeroed, as only the member for the entry's type is written.
+        let mut item = MaybeUninit::<gum_sys::GumMachoThreadedItem>::zeroed();
+        let item = unsafe {
+            gum_sys::gum_macho_threaded_item_parse(value, item.as_mut_ptr());
+            item.assume_init()
+        };
+        Self {
+            is_authenticated: item.is_authenticated != 0,
+            type_: item.type_,
+            delta: item.delta,
+            key: item.key,
+            has_address_diversity: item.has_address_diversity != 0,
+            diversity: item.diversity,
+            bind_ordinal: item.bind_ordinal,
+            rebase_address: item.rebase_address,
+        }
+    }
+}
+
+unsafe fn dependency_from_raw(details: *const gum_sys::GumDependencyDetails) -> DependencyDetails {
+    let details = unsafe { &*details };
+    DependencyDetails {
+        name: unsafe { string_at(details.name) }.unwrap_or_default(),
+        typ: match details.type_ {
+            gum_sys::GumDependencyType_GUM_DEPENDENCY_WEAK => DependencyType::Weak,
+            gum_sys::GumDependencyType_GUM_DEPENDENCY_REEXPORT => DependencyType::Reexport,
+            gum_sys::GumDependencyType_GUM_DEPENDENCY_UPWARD => DependencyType::Upward,
+            _ => DependencyType::Regular,
+        },
+    }
+}
+
+unsafe fn import_from_raw(details: *const gum_sys::GumImportDetails) -> ImportDetails {
+    let details = unsafe { &*details };
+    ImportDetails {
+        typ: match details.type_ {
+            gum_sys::GumImportType_GUM_IMPORT_FUNCTION => ImportType::Function,
+            gum_sys::GumImportType_GUM_IMPORT_VARIABLE => ImportType::Variable,
+            _ => ImportType::Unknown,
+        },
+        name: unsafe { string_at(details.name) }.unwrap_or_default(),
+        module: unsafe { string_at(details.module) },
+        address: details.address as usize,
+        slot: details.slot as usize,
+    }
+}
+
+/// What [`MachoModule::enumerate_imports`] passes Gum as the one user data its two callbacks share.
+struct ImportSinks<'a> {
+    found: Sink<'a, *const gum_sys::GumImportDetails>,
+    resolve: &'a mut dyn FnMut(Option<&str>, &str) -> u64,
+}
+
+unsafe extern "C" fn found_import_callout(
+    details: *const gum_sys::GumImportDetails,
+    user_data: gpointer,
+) -> gboolean {
+    let sinks = unsafe { &mut *(user_data as *mut ImportSinks<'_>) };
+    (sinks.found)(details) as gboolean
+}
+
+unsafe extern "C" fn resolve_export_callout(
+    module_name: *const c_char,
+    symbol_name: *const c_char,
+    user_data: gpointer,
+) -> gum_sys::GumAddress {
+    let sinks = unsafe { &mut *(user_data as *mut ImportSinks<'_>) };
+    let module_name = unsafe { string_at(module_name.cast()) };
+    let symbol_name = unsafe { string_at(symbol_name.cast()) }.unwrap_or_default();
+    (sinks.resolve)(module_name.as_deref(), &symbol_name)
 }
 
 /// The task whose memory holds an image mapped into this process.
@@ -265,6 +446,38 @@ impl MachoModule {
         }
     }
 
+    /// Reads the image if it has not been read yet, which a module from memory puts off until
+    /// it is first used. Returns whether the module has an image.
+    ///
+    /// A module without one has nothing in it: every enumeration is empty.
+    pub fn ensure_image_loaded(&self) -> bool {
+        let mut error: *mut gum_sys::GError = ptr::null_mut();
+        let loaded =
+            unsafe { gum_sys::gum_macho_module_ensure_image_loaded(self.inner, &mut error) };
+        if !error.is_null() {
+            unsafe { glib_compat::g_error_free(error) };
+        }
+        loaded != 0
+    }
+
+    /// How far the image is from its preferred address: the difference between where it is loaded
+    /// and the address of its `__TEXT` segment. A module from a file is not loaded anywhere, so
+    /// its slide takes its addresses to offsets from the start of the image.
+    pub fn slide(&self) -> u64 {
+        unsafe { gum_sys::gum_macho_module_get_slide(self.inner) }
+    }
+
+    /// Whether `address` is in a section of code.
+    pub fn is_address_in_text_section(&self, address: u64) -> bool {
+        unsafe { gum_sys::gum_macho_module_is_address_in_text_section(self.inner, address) != 0 }
+    }
+
+    /// Whether the image leaves the symbols it re-exports out of its own exports, as images
+    /// built for macOS 10.11 and iOS 9.0 or later do.
+    pub fn lacks_exports_for_reexports(&self) -> bool {
+        unsafe { gum_sys::gum_macho_module_get_lacks_exports_for_reexports(self.inner) != 0 }
+    }
+
     /// The module's first segment, or null if its image cannot be read.
     fn first_segment(&self) -> *const gum_sys::GumMachoSegment {
         unsafe { gum_sys::gum_macho_module_get_nth_segment(self.inner, 0) }
@@ -288,15 +501,12 @@ impl MachoModule {
     where
         F: FnMut(MachoSectionDetails) -> bool,
     {
-        let mut sink = |details| callback(unsafe { MachoSectionDetails::from_raw(details) });
-        let mut sink: Sink<'_, *const gum_sys::GumMachoSectionDetails> = &mut sink;
-        unsafe {
-            gum_sys::gum_macho_module_enumerate_sections(
-                self.inner,
-                Some(details_callout::<gum_sys::GumMachoSectionDetails>),
-                &mut sink as *mut _ as gpointer,
-            );
-        }
+        enumerate_details(
+            |details| callback(unsafe { MachoSectionDetails::from_raw(details) }),
+            |func, data| unsafe {
+                gum_sys::gum_macho_module_enumerate_sections(self.inner, Some(func), data)
+            },
+        );
     }
 
     /// Enumerate symbols in this module.
@@ -304,15 +514,22 @@ impl MachoModule {
     where
         F: FnMut(MachoSymbolDetails) -> bool,
     {
-        let mut sink = |details| callback(unsafe { MachoSymbolDetails::from_raw(details) });
-        let mut sink: Sink<'_, *const gum_sys::GumMachoSymbolDetails> = &mut sink;
-        unsafe {
-            gum_sys::gum_macho_module_enumerate_symbols(
-                self.inner,
-                Some(details_callout::<gum_sys::GumMachoSymbolDetails>),
-                &mut sink as *mut _ as gpointer,
-            );
-        }
+        enumerate_details(
+            |details| callback(unsafe { MachoSymbolDetails::from_raw(details) }),
+            |func, data| unsafe {
+                gum_sys::gum_macho_module_enumerate_symbols(self.inner, Some(func), data)
+            },
+        );
+    }
+
+    /// The address of the symbol named `name`, or `None` if the image has no such symbol or the
+    /// symbol has no address.
+    pub fn resolve_symbol_address(&self, name: &str) -> Option<u64> {
+        let name = CString::new(name).ok()?;
+        let address = unsafe {
+            gum_sys::gum_macho_module_resolve_symbol_address(self.inner, name.as_ptr().cast())
+        };
+        (address != 0).then_some(address)
     }
 
     /// Enumerate exports from this module.
@@ -320,13 +537,75 @@ impl MachoModule {
     where
         F: FnMut(MachoExportDetails) -> bool,
     {
-        let mut sink = |details| callback(unsafe { MachoExportDetails::from_raw(details) });
-        let mut sink: Sink<'_, *const gum_sys::GumMachoExportDetails> = &mut sink;
+        enumerate_details(
+            |details| callback(unsafe { MachoExportDetails::from_raw(details) }),
+            |func, data| unsafe {
+                gum_sys::gum_macho_module_enumerate_exports(self.inner, Some(func), data)
+            },
+        );
+    }
+
+    /// Enumerate the exports whose names start with `prefix`.
+    pub fn enumerate_exports_with_prefix<F>(&self, prefix: &str, mut callback: F)
+    where
+        F: FnMut(MachoExportDetails) -> bool,
+    {
+        let Ok(prefix) = CString::new(prefix) else {
+            // No name has a NUL in it.
+            return;
+        };
+        enumerate_details(
+            |details| callback(unsafe { MachoExportDetails::from_raw(details) }),
+            |func, data| unsafe {
+                gum_sys::gum_macho_module_enumerate_exports_with_prefix(
+                    self.inner,
+                    prefix.as_ptr().cast(),
+                    Some(func),
+                    data,
+                )
+            },
+        );
+    }
+
+    /// The export named `name`, compared exactly.
+    pub fn resolve_export(&self, name: &str) -> Option<MachoExportDetails> {
+        let name = CString::new(name).ok()?;
+        let mut details = MaybeUninit::<gum_sys::GumMachoExportDetails>::uninit();
         unsafe {
-            gum_sys::gum_macho_module_enumerate_exports(
+            let found = gum_sys::gum_macho_module_resolve_export(
                 self.inner,
-                Some(details_callout::<gum_sys::GumMachoExportDetails>),
-                &mut sink as *mut _ as gpointer,
+                name.as_ptr().cast(),
+                details.as_mut_ptr(),
+            );
+            // Its name is `name`, which is still alive.
+            (found != 0).then(|| MachoExportDetails::from_raw(details.as_ptr()))
+        }
+    }
+
+    /// Enumerate the symbols this module imports: those it binds, binds lazily, and binds through
+    /// chained fixups.
+    ///
+    /// `resolver` is asked for the address of each import bound through chained fixups, given the
+    /// name of the dependency it comes from, if it names one, and the name of the symbol. Gum
+    /// tells those imports apart by that address, so a resolver that gives several the same one
+    /// leaves only the last of them. Other imports are reported with no address.
+    pub fn enumerate_imports<R, F>(&self, mut resolver: R, mut callback: F)
+    where
+        R: FnMut(Option<&str>, &str) -> u64,
+        F: FnMut(ImportDetails) -> bool,
+    {
+        let mut found = |details| callback(unsafe { import_from_raw(details) });
+        let mut sinks = ImportSinks {
+            found: &mut found,
+            resolve: &mut resolver,
+        };
+        unsafe {
+            gum_sys::gum_macho_module_enumerate_imports(
+                self.inner,
+                Some(found_import_callout),
+                // Gum asserts that there is one.
+                Some(resolve_export_callout),
+                &mut sinks as *mut _ as gpointer,
             );
         }
     }
@@ -337,15 +616,208 @@ impl MachoModule {
         F: FnMut(MachoBindDetails) -> bool,
     {
         let first_segment = self.first_segment();
-        let mut sink =
-            |details| callback(unsafe { MachoBindDetails::from_raw(details, first_segment) });
-        let mut sink: Sink<'_, *const gum_sys::GumMachoBindDetails> = &mut sink;
+        enumerate_details(
+            |details| callback(unsafe { MachoBindDetails::from_raw(details, first_segment) }),
+            |func, data| unsafe {
+                gum_sys::gum_macho_module_enumerate_binds(self.inner, Some(func), data)
+            },
+        );
+    }
+
+    /// Enumerate the binds dyld puts off until the symbol is first used.
+    pub fn enumerate_lazy_binds<F>(&self, mut callback: F)
+    where
+        F: FnMut(MachoBindDetails) -> bool,
+    {
+        let first_segment = self.first_segment();
+        enumerate_details(
+            |details| callback(unsafe { MachoBindDetails::from_raw(details, first_segment) }),
+            |func, data| unsafe {
+                gum_sys::gum_macho_module_enumerate_lazy_binds(self.inner, Some(func), data)
+            },
+        );
+    }
+
+    /// Enumerate the addresses in the image to adjust when it is not loaded at its preferred
+    /// address.
+    pub fn enumerate_rebases<F>(&self, mut callback: F)
+    where
+        F: FnMut(MachoRebaseDetails) -> bool,
+    {
+        let first_segment = self.first_segment();
+        enumerate_details(
+            |details: *const gum_sys::GumMachoRebaseDetails| {
+                let details = unsafe { &*details };
+                callback(MachoRebaseDetails {
+                    // SAFETY: a rebase's segment is one of the module's.
+                    segment_index: unsafe { segment_index(details.segment, first_segment) },
+                    offset: details.offset,
+                    type_: details.type_,
+                    slide: details.slide,
+                })
+            },
+            |func, data| unsafe {
+                gum_sys::gum_macho_module_enumerate_rebases(self.inner, Some(func), data)
+            },
+        );
+    }
+
+    /// Enumerate the image's chained fixups: one entry for each load command that has them.
+    pub fn enumerate_chained_fixups<F>(&self, mut callback: F)
+    where
+        F: FnMut(MachoChainedFixupsDetails) -> bool,
+    {
+        enumerate_details(
+            |details: *const gum_sys::GumMachoChainedFixupsDetails| {
+                let details = unsafe { &*details };
+                callback(MachoLinkeditData {
+                    vm_address: details.vm_address,
+                    file_offset: details.file_offset,
+                    size: details.size,
+                })
+            },
+            |func, data| unsafe {
+                gum_sys::gum_macho_module_enumerate_chained_fixups(self.inner, Some(func), data)
+            },
+        );
+    }
+
+    /// Enumerate the image's function starts: one entry for each load command that has them.
+    pub fn enumerate_function_starts<F>(&self, mut callback: F)
+    where
+        F: FnMut(MachoFunctionStartsDetails) -> bool,
+    {
+        enumerate_details(
+            |details: *const gum_sys::GumMachoFunctionStartsDetails| {
+                let details = unsafe { &*details };
+                callback(MachoLinkeditData {
+                    vm_address: details.vm_address,
+                    file_offset: details.file_offset,
+                    size: details.size,
+                })
+            },
+            |func, data| unsafe {
+                gum_sys::gum_macho_module_enumerate_function_starts(self.inner, Some(func), data)
+            },
+        );
+    }
+
+    /// The thread-local variables the image declares. All zero if it declares none.
+    pub fn tlv_parameters(&self) -> MachoTlvParameters {
+        let mut params = MaybeUninit::<gum_sys::GumMachoTlvParameters>::uninit();
+        let params = unsafe {
+            gum_sys::gum_macho_module_query_tlv_parameters(self.inner, params.as_mut_ptr());
+            // Every member is written, whether or not there is an image.
+            params.assume_init()
+        };
+        MachoTlvParameters {
+            num_descriptors: params.num_descriptors,
+            descriptors_offset: params.descriptors_offset,
+            data_offset: params.data_offset,
+            data_size: params.data_size as usize,
+            bss_size: params.bss_size as usize,
+        }
+    }
+
+    /// Enumerate the descriptors of the image's thread-local variables.
+    pub fn enumerate_tlv_descriptors<F>(&self, mut callback: F)
+    where
+        F: FnMut(MachoTlvDescriptorDetails) -> bool,
+    {
+        enumerate_details(
+            |details: *const gum_sys::GumMachoTlvDescriptorDetails| {
+                let details = unsafe { &*details };
+                callback(MachoTlvDescriptorDetails {
+                    file_offset: details.file_offset,
+                    thunk: details.thunk,
+                    key: details.key,
+                    offset: details.offset as usize,
+                })
+            },
+            |func, data| unsafe {
+                gum_sys::gum_macho_module_enumerate_tlv_descriptors(self.inner, Some(func), data)
+            },
+        );
+    }
+
+    /// Enumerate the sections of pointers to the image's initializers.
+    pub fn enumerate_init_pointers<F>(&self, mut callback: F)
+    where
+        F: FnMut(MachoInitPointersDetails) -> bool,
+    {
+        enumerate_details(
+            |details: *const gum_sys::GumMachoInitPointersDetails| {
+                let details = unsafe { &*details };
+                callback(MachoPointerTable {
+                    address: details.address,
+                    count: details.count,
+                })
+            },
+            |func, data| unsafe {
+                gum_sys::gum_macho_module_enumerate_init_pointers(self.inner, Some(func), data)
+            },
+        );
+    }
+
+    /// Enumerate the sections of 32-bit offsets to the image's initializers.
+    pub fn enumerate_init_offsets<F>(&self, mut callback: F)
+    where
+        F: FnMut(MachoInitOffsetsDetails) -> bool,
+    {
+        enumerate_details(
+            |details: *const gum_sys::GumMachoInitOffsetsDetails| {
+                let details = unsafe { &*details };
+                callback(MachoPointerTable {
+                    address: details.address,
+                    count: details.count,
+                })
+            },
+            |func, data| unsafe {
+                gum_sys::gum_macho_module_enumerate_init_offsets(self.inner, Some(func), data)
+            },
+        );
+    }
+
+    /// Enumerate the sections of pointers to the image's terminators.
+    pub fn enumerate_term_pointers<F>(&self, mut callback: F)
+    where
+        F: FnMut(MachoTermPointersDetails) -> bool,
+    {
+        enumerate_details(
+            |details: *const gum_sys::GumMachoTermPointersDetails| {
+                let details = unsafe { &*details };
+                callback(MachoPointerTable {
+                    address: details.address,
+                    count: details.count,
+                })
+            },
+            |func, data| unsafe {
+                gum_sys::gum_macho_module_enumerate_term_pointers(self.inner, Some(func), data)
+            },
+        );
+    }
+
+    /// Enumerate the libraries this module depends on, in the order binds number them from one.
+    pub fn enumerate_dependencies<F>(&self, mut callback: F)
+    where
+        F: FnMut(DependencyDetails) -> bool,
+    {
+        enumerate_details(
+            |details| callback(unsafe { dependency_from_raw(details) }),
+            |func, data| unsafe {
+                gum_sys::gum_macho_module_enumerate_dependencies(self.inner, Some(func), data)
+            },
+        );
+    }
+
+    /// The name of the library a bind's `library_ordinal` stands for: a dependency for an ordinal
+    /// from one up, and this module, if it has a name, for zero. `None` for any other ordinal.
+    pub fn dependency_by_ordinal(&self, ordinal: i32) -> Option<String> {
+        // Owned by the module.
         unsafe {
-            gum_sys::gum_macho_module_enumerate_binds(
-                self.inner,
-                Some(details_callout::<gum_sys::GumMachoBindDetails>),
-                &mut sink as *mut _ as gpointer,
-            );
+            string_at(gum_sys::gum_macho_module_get_dependency_by_ordinal(
+                self.inner, ordinal,
+            ))
         }
     }
 
@@ -364,9 +836,61 @@ impl MachoModule {
         collected(|sink| self.enumerate_exports(sink))
     }
 
+    /// Collect all imports into a Vec, with no address for any of them. Of the imports bound
+    /// through chained fixups, which [`MachoModule::enumerate_imports`] needs a resolver to tell
+    /// apart, there is only the last.
+    pub fn imports(&self) -> Vec<ImportDetails> {
+        collected(|sink| self.enumerate_imports(|_, _| 0, sink))
+    }
+
     /// Collect all binds into a Vec.
     pub fn binds(&self) -> Vec<MachoBindDetails> {
         collected(|sink| self.enumerate_binds(sink))
+    }
+
+    /// Collect all lazy binds into a Vec.
+    pub fn lazy_binds(&self) -> Vec<MachoBindDetails> {
+        collected(|sink| self.enumerate_lazy_binds(sink))
+    }
+
+    /// Collect all rebases into a Vec.
+    pub fn rebases(&self) -> Vec<MachoRebaseDetails> {
+        collected(|sink| self.enumerate_rebases(sink))
+    }
+
+    /// Collect all chained fixups into a Vec.
+    pub fn chained_fixups(&self) -> Vec<MachoChainedFixupsDetails> {
+        collected(|sink| self.enumerate_chained_fixups(sink))
+    }
+
+    /// Collect all function starts into a Vec.
+    pub fn function_starts(&self) -> Vec<MachoFunctionStartsDetails> {
+        collected(|sink| self.enumerate_function_starts(sink))
+    }
+
+    /// Collect all thread-local variable descriptors into a Vec.
+    pub fn tlv_descriptors(&self) -> Vec<MachoTlvDescriptorDetails> {
+        collected(|sink| self.enumerate_tlv_descriptors(sink))
+    }
+
+    /// Collect all sections of initializer pointers into a Vec.
+    pub fn init_pointers(&self) -> Vec<MachoInitPointersDetails> {
+        collected(|sink| self.enumerate_init_pointers(sink))
+    }
+
+    /// Collect all sections of initializer offsets into a Vec.
+    pub fn init_offsets(&self) -> Vec<MachoInitOffsetsDetails> {
+        collected(|sink| self.enumerate_init_offsets(sink))
+    }
+
+    /// Collect all sections of terminator pointers into a Vec.
+    pub fn term_pointers(&self) -> Vec<MachoTermPointersDetails> {
+        collected(|sink| self.enumerate_term_pointers(sink))
+    }
+
+    /// Collect all dependencies into a Vec.
+    pub fn dependencies(&self) -> Vec<DependencyDetails> {
+        collected(|sink| self.enumerate_dependencies(sink))
     }
 }
 

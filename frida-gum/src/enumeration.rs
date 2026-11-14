@@ -28,6 +28,15 @@ pub(crate) unsafe extern "C" fn details_callout<Raw>(
     sink(details) as gboolean
 }
 
+/// Calls `enumerate` with the C callback and user data that hand each item it finds to `sink`.
+pub(crate) fn enumerate_details<Raw>(
+    mut sink: impl FnMut(*const Raw) -> bool,
+    enumerate: impl FnOnce(unsafe extern "C" fn(*const Raw, gpointer) -> gboolean, gpointer),
+) {
+    let mut sink: Sink<'_, *const Raw> = &mut sink;
+    enumerate(details_callout::<Raw>, &mut sink as *mut _ as gpointer);
+}
+
 /// Everything `enumerate` yields, collected.
 pub(crate) fn collected<Item>(enumerate: impl FnOnce(&mut dyn FnMut(Item) -> bool)) -> Vec<Item> {
     let mut items = Vec::new();
