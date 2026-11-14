@@ -136,6 +136,11 @@ pub struct Module {
 }
 
 impl Module {
+    /// Takes over the caller's reference to `module`, which must not be null.
+    pub(crate) unsafe fn from_owned(module: *mut GumModule) -> Self {
+        Self { inner: module }
+    }
+
     pub(crate) fn from_raw(module: *mut GumModule) -> Self {
         unsafe {
             gum_sys::g_object_ref(module.cast());

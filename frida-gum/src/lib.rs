@@ -89,6 +89,15 @@ pub use module_map::*;
 mod macho_module;
 pub use macho_module::*;
 
+mod process_memory;
+pub use process_memory::*;
+
+mod module_resolver;
+pub use module_resolver::*;
+
+mod mapper;
+pub use mapper::*;
+
 mod process;
 pub use process::*;
 
