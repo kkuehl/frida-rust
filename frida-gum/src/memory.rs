@@ -21,6 +21,16 @@ use alloc::{boxed::Box, vec::Vec};
 #[cfg(feature = "std")]
 use std::{boxed::Box, vec::Vec};
 
+/// The alignment to ask Gum for: `alignment`, or the page size where that is larger.
+///
+/// Gum works out how much to map as `size + (alignment - page_size)`, which wraps around for an
+/// alignment below the page size unless the size makes up the difference, and the allocation
+/// then fails. Memory is mapped in whole pages, so a smaller alignment asks for nothing more.
+pub(crate) fn page_alignment(alignment: usize) -> gum_sys::gsize {
+    let page_size = unsafe { gum_sys::gum_query_page_size() } as usize;
+    alignment.max(page_size) as gum_sys::gsize
+}
+
 /// Memory allocation and manipulation utilities.
 pub struct Memory;
 
@@ -73,8 +83,9 @@ impl Memory {
     /// Allocate memory with the specified size, alignment, and protection.
     ///
     /// `alignment` must be a power of two; pass `1` if no specific alignment
-    /// is required. Returns the address of the allocated memory, or `None`
-    /// if allocation fails.
+    /// is required. Memory is allocated in whole pages, so it is aligned to
+    /// at least the page size whatever is asked for. Returns the address of
+    /// the allocated memory, or `None` if allocation fails.
     pub fn allocate(
         size: usize,
         alignment: usize,
@@ -84,7 +95,7 @@ impl Memory {
             gum_sys::gum_memory_allocate(
                 core::ptr::null_mut(),
                 size as gum_sys::gsize,
-                alignment as gum_sys::gsize,
+                page_alignment(alignment),
                 protection as u32,
             )
         };
@@ -125,7 +136,7 @@ impl Memory {
             gum_sys::gum_memory_allocate_near(
                 &spec,
                 size as gum_sys::gsize,
-                alignment as gum_sys::gsize,
+                page_alignment(alignment),
                 protection as u32,
             )
         };

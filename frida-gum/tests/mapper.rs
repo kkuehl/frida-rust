@@ -122,6 +122,46 @@ fn mapped_memory_holds_the_data_under_the_protection_asked_for() {
 }
 
 #[test]
+fn mapped_memory_holds_data_that_starts_a_page() {
+    // Darwin maps such data's pages over the target as they are. Data that does not start a page
+    // is copied to where it does first, which the test above covers.
+    let _alone = alone();
+    let memory = ProcessMemory::local(&GUM);
+    let source = memory.alloc(PAGE, PAGE).unwrap();
+    let address = memory.alloc(PAGE, PAGE).unwrap();
+
+    // SAFETY: both pages were just allocated, are written and read within their size, and are
+    // not used again once freed.
+    unsafe {
+        assert!(memory.write(source, b"aligned"));
+        let data = std::slice::from_raw_parts(source as *const u8, 7);
+
+        assert!(memory.map(address, PAGE, data, PageProtection::Read));
+
+        assert_eq!(memory.read(address, 7).as_deref(), Some(&b"aligned"[..]));
+        memory.free(address, PAGE);
+        memory.free(source, PAGE);
+    }
+}
+
+#[test]
+fn memory_is_allocated_whatever_alignment_is_asked_for() {
+    // Gum's arithmetic wraps around for an alignment below the page size, and it then finds no
+    // memory. The alignment is raised to the page size, which every allocation has anyway.
+    let _alone = alone();
+    let memory = ProcessMemory::local(&GUM);
+
+    let address = memory.alloc(48, 1).expect("a small allocation");
+
+    // SAFETY: allocated here with this size and not used again.
+    unsafe {
+        assert!(memory.write(address, b"small"));
+        assert_eq!(memory.read(address, 5).as_deref(), Some(&b"small"[..]));
+        memory.free(address, 48);
+    }
+}
+
+#[test]
 fn code_written_to_memory_can_be_marked_executable() {
     let _alone = alone();
     let memory = ProcessMemory::local(&GUM);

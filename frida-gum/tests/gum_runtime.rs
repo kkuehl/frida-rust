@@ -270,3 +270,21 @@ fn process_platform_is_this_platform() {
     assert!(matches!(platform, frida_gum::Os::Windows));
     let _ = platform;
 }
+
+#[test]
+fn memory_allocates_with_no_particular_alignment() {
+    // `1` is what the documentation says to pass for no alignment, and Gum's arithmetic wraps
+    // around for it: fewer bytes than a page could not be allocated at all.
+    let _gum = &*GUM;
+
+    let small = Memory::allocate(48, 1, PageProtection::ReadWrite).expect("a small allocation");
+    let near = Memory::allocate_near(small, i32::MAX as usize, 48, 1, PageProtection::ReadWrite)
+        .expect("a small allocation near the first");
+
+    // SAFETY: both were allocated here with this size and are not used again.
+    unsafe {
+        assert!(Memory::write(small, b"small"));
+        assert!(Memory::free(near, 48));
+        assert!(Memory::free(small, 48));
+    }
+}

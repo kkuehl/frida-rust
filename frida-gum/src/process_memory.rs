@@ -8,7 +8,7 @@
 //! one interface. It is what a [`Mapper`](crate::Mapper) maps a module into.
 
 use {
-    crate::{Gum, PageProtection},
+    crate::{Gum, PageProtection, memory::page_alignment},
     core::ffi::c_void,
     frida_gum_sys as gum_sys,
 };
@@ -59,10 +59,12 @@ impl ProcessMemory {
     }
 
     /// Allocates `size` bytes of readable and writable memory at a multiple of `alignment`,
-    /// which must be a power of two. Returns its address, or `None` if there is none to be had.
+    /// which must be a power of two, and of the page size. Returns its address, or `None` if
+    /// there is none to be had.
     pub fn alloc(&self, size: usize, alignment: usize) -> Option<u64> {
-        let address =
-            unsafe { gum_sys::gum_process_memory_alloc(self.as_raw(), size as _, alignment as _) };
+        let address = unsafe {
+            gum_sys::gum_process_memory_alloc(self.as_raw(), size as _, page_alignment(alignment))
+        };
         (address != 0).then_some(address)
     }
 
@@ -80,7 +82,7 @@ impl ProcessMemory {
                 near_address,
                 max_distance as _,
                 size as _,
-                alignment as _,
+                page_alignment(alignment),
             )
         };
         (address != 0).then_some(address)
@@ -133,7 +135,8 @@ impl ProcessMemory {
     }
 
     /// Fills the start of the `size` bytes at `address` with `data` and gives them all the
-    /// protection `protection`. Returns whether it did.
+    /// protection `protection`. Returns whether it did. What the bytes after `data` hold is
+    /// not specified.
     ///
     /// # Safety
     ///
@@ -146,13 +149,55 @@ impl ProcessMemory {
         data: &[u8],
         protection: PageProtection,
     ) -> bool {
+        // On Darwin, Gum does not copy `data`: it maps the pages `data` is in over the target.
+        // Data that does not start a page would so end up as far into the target as it is into
+        // its own page, after whatever else that page holds. A copy that starts one is mapped
+        // in its place.
+        #[cfg(target_vendor = "apple")]
+        {
+            let page_size = unsafe { gum_sys::gum_query_page_size() } as usize;
+            if !data.is_empty() && (data.as_ptr() as usize) & (page_size - 1) != 0 {
+                let staged_size = data.len().next_multiple_of(page_size);
+                let staged = unsafe {
+                    gum_sys::gum_memory_allocate(
+                        core::ptr::null_mut(),
+                        staged_size as _,
+                        page_size as _,
+                        PageProtection::ReadWrite as u32,
+                    )
+                };
+                if staged.is_null() {
+                    return false;
+                }
+                // SAFETY: the pages are new, at least as long as `data`, and only used here.
+                // The target keeps its own copy of them, so they can be freed once mapped.
+                return unsafe {
+                    core::ptr::copy_nonoverlapping(data.as_ptr(), staged.cast::<u8>(), data.len());
+                    let mapped = self.map_pages(address, size, staged, data.len(), protection);
+                    gum_sys::gum_memory_free(staged, staged_size as _);
+                    mapped
+                };
+            }
+        }
+
+        unsafe { self.map_pages(address, size, data.as_ptr().cast(), data.len(), protection) }
+    }
+
+    unsafe fn map_pages(
+        &self,
+        address: u64,
+        size: usize,
+        data: *const c_void,
+        data_size: usize,
+        protection: PageProtection,
+    ) -> bool {
         unsafe {
             gum_sys::gum_process_memory_map(
                 self.as_raw(),
                 address,
                 size as _,
-                data.as_ptr().cast(),
-                data.len() as _,
+                data,
+                data_size as _,
                 protection as u32,
             ) != 0
         }
