@@ -83,6 +83,11 @@ fn main() {
         println!("cargo:rustc-link-lib=pthread");
     }
 
+    // The devkit's GIO looks host names up through libresolv, with or without GumJS.
+    if target_vendor == "apple" {
+        println!("cargo:rustc-link-lib=resolv");
+    }
+
     let bindings = bindgen::Builder::default()
         .use_core()
         .formatter(bindgen::Formatter::Prettyplease);
@@ -240,9 +245,6 @@ fn main() {
         }
         "android" => {
             println!("cargo:rustc-link-lib=c++")
-        }
-        "macos" => {
-            println!("cargo:rustc-link-lib=resolv")
         }
         _ => {}
     }
