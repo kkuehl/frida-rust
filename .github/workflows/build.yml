@@ -175,6 +175,37 @@ jobs:
         run: |
           cd frida-gum
           cargo rustdoc --features "event-sink invocation-listener"
+  headers:
+    name: Committed headers match FRIDA_VERSION
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check the FRIDA_VERSION files agree
+        run: |
+          version=$(cat FRIDA_VERSION)
+          for file in FRIDA_VERSION frida-gum-sys/FRIDA_VERSION frida-sys/FRIDA_VERSION; do
+            if [ "$(cat "$file")" != "$version" ]; then
+              echo "::error file=$file::$file is $(cat "$file"), but FRIDA_VERSION is $version"
+              exit 1
+            fi
+          done
+      - name: Compare the committed headers with the pinned devkits
+        run: |
+          set -euo pipefail
+          version=$(cat FRIDA_VERSION)
+          base="https://github.com/frida/frida/releases/download/$version"
+          work=$(mktemp -d)
+          curl -fsSL -o "$work/frida-gumjs.tar.xz" "$base/frida-gumjs-devkit-$version-linux-x86_64.tar.xz"
+          curl -fsSL -o "$work/frida-core.tar.xz" "$base/frida-core-devkit-$version-linux-x86_64.tar.xz"
+          tar xJf "$work/frida-gumjs.tar.xz" -C "$work"
+          tar xJf "$work/frida-core.tar.xz" -C "$work"
+          status=0
+          diff -u frida-gum-sys/include/frida-gumjs.h "$work/frida-gumjs.h" || status=1
+          diff -u frida-sys/include/frida-core.h "$work/frida-core.h" || status=1
+          if [ "$status" -ne 0 ]; then
+            echo "::error::The committed headers differ from the Frida $version devkits; run scripts/update-headers.sh and commit the result."
+            exit 1
+          fi
   check-nostd:
     name: Check no_std
     runs-on: ubuntu-latest
