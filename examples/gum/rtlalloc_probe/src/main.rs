@@ -28,7 +28,8 @@ fn main() {
         )
         .expect("replace failed");
 
-    *ORIGINAL.lock().unwrap() = Some(unsafe { std::mem::transmute(orig.0) });
+    *ORIGINAL.lock().unwrap() =
+        Some(unsafe { std::mem::transmute::<*mut c_void, RtlAllocateHeapFn>(orig.0) });
 
     println!("hooked RtlAllocateHeap @ {:#x}", target.0 as usize);
 

@@ -76,19 +76,17 @@ fn replace_normal() {
     let test_func_ptr = test_func as *mut c_void;
     let test_detour_ptr = test_detour as *mut c_void;
     unsafe {
-        *ORIGINAL_TEST.lock().unwrap().get_mut() = Some(std::mem::transmute::<
-            *mut libc::c_void,
-            extern "C" fn(*const i8) -> u32,
-        >(
-            interceptor
-                .replace(
-                    NativePointer(test_func_ptr),
-                    NativePointer(test_detour_ptr),
-                    NativePointer(std::ptr::null_mut()),
-                )
-                .unwrap()
-                .0,
-        ));
+        *ORIGINAL_TEST.lock().unwrap().get_mut() =
+            Some(std::mem::transmute::<*mut libc::c_void, TestFunc>(
+                interceptor
+                    .replace(
+                        NativePointer(test_func_ptr),
+                        NativePointer(test_detour_ptr),
+                        NativePointer(std::ptr::null_mut()),
+                    )
+                    .unwrap()
+                    .0,
+            ));
     }
 }
 
@@ -97,15 +95,13 @@ fn replace_fast() {
     let test_func_ptr = test_func as *mut c_void;
     let test_detour_ptr = test_detour as *mut c_void;
     unsafe {
-        *ORIGINAL_TEST.lock().unwrap().get_mut() = Some(std::mem::transmute::<
-            *mut libc::c_void,
-            extern "C" fn(*const i8) -> u32,
-        >(
-            interceptor
-                .replace_fast(NativePointer(test_func_ptr), NativePointer(test_detour_ptr))
-                .unwrap()
-                .0,
-        ));
+        *ORIGINAL_TEST.lock().unwrap().get_mut() =
+            Some(std::mem::transmute::<*mut libc::c_void, TestFunc>(
+                interceptor
+                    .replace_fast(NativePointer(test_func_ptr), NativePointer(test_detour_ptr))
+                    .unwrap()
+                    .0,
+            ));
     }
 }
 

@@ -49,6 +49,10 @@
 #![deny(warnings)]
 #![allow(clippy::needless_doctest_main)]
 #![allow(clippy::missing_safety_doc)]
+// Gum's constants and integer types are not the same Rust type on every target: a C enum is
+// `i32` on Windows and `u32` elsewhere, and a `gsize` is as wide as a pointer. A cast that one
+// target needs is therefore redundant on another, where this lint would have it removed.
+#![allow(clippy::unnecessary_cast)]
 
 #[cfg(not(feature = "std"))]
 extern crate alloc;

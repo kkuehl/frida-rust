@@ -65,7 +65,7 @@ fn main() {
         println!("[*] Script loaded.");
 
         let js_functions = script.list_exports().unwrap();
-        println!("{:?}", &js_functions);
+        println!("{:?}", js_functions);
 
         // Example calling a function in JS and giving the function name from `list_exports`
         // Expect a log message to be printed.

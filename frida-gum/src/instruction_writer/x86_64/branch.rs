@@ -1,5 +1,3 @@
-#![allow(clippy::unnecessary_cast)]
-
 use frida_gum_sys as gum_sys;
 
 #[repr(u32)]

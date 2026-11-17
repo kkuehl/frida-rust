@@ -30,7 +30,7 @@ impl ProbeListener for OpenProbeListener {
 #[ctor]
 fn init() {
     static CELL: OnceLock<Gum> = OnceLock::new();
-    let gum = CELL.get_or_init(|| Gum::obtain());
+    let gum = CELL.get_or_init(Gum::obtain);
 
     let handle = thread::spawn(move || {
         let mut interceptor = Interceptor::obtain(gum);
@@ -43,7 +43,7 @@ fn init() {
         interceptor.attach_instruction(open, &mut listener).unwrap();
     });
 
-    let process = frida_gum::Process::obtain(&gum);
+    let process = frida_gum::Process::obtain(gum);
 
     println!("Process Information");
     println!("-------------------");

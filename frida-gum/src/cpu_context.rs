@@ -83,6 +83,9 @@ pub enum CpuContextAccess {
     CpuCcontextReadWrite,
 }
 
+// The registers are kept inline, though they are hundreds of bytes on some architectures: a
+// context is made each time a callback is given one, and boxing them would allocate each time.
+#[allow(clippy::large_enum_variant)]
 pub enum CpuContextType {
     ReadOnly(GumCpuContext),
     ReadWrite(*mut GumCpuContext),

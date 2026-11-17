@@ -5,11 +5,6 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
-#![cfg_attr(
-    any(target_arch = "x86_64", target_arch = "x86"),
-    allow(clippy::unnecessary_cast)
-)]
-
 use {
     crate::Module,
     core::{ffi::c_void, slice::from_raw_parts},

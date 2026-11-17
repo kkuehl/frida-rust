@@ -5,11 +5,6 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
-#![cfg_attr(
-    any(target_arch = "x86_64", target_arch = "x86"),
-    allow(clippy::unnecessary_cast)
-)]
-
 extern crate alloc;
 use {
     crate::MemoryRange,
@@ -95,7 +90,7 @@ impl FileMapping<'_> {
 
     /// The size of the mapping.
     pub fn size(&self) -> usize {
-        self.size as usize
+        self.size
     }
 }
 

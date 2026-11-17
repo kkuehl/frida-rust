@@ -1,11 +1,6 @@
 //! Process helpers.
 //!
 
-#![cfg_attr(
-    any(target_arch = "x86_64", target_arch = "x86"),
-    allow(clippy::unnecessary_cast)
-)]
-
 use crate::{FileMapping, Module, NativePointer, Thread};
 
 use {
