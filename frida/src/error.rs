@@ -46,6 +46,24 @@ pub enum Error {
         message: String,
     },
 
+    /// Failed to enumerate the device's processes
+    #[error("Failed to enumerate processes ({code}) {message}")]
+    DeviceEnumerateProcessesFailed {
+        /// Error code
+        code: i32,
+        /// Error message
+        message: String,
+    },
+
+    /// Failed to enumerate the device manager's devices
+    #[error("Failed to enumerate devices ({code}) {message}")]
+    DeviceEnumerateDevicesFailed {
+        /// Error code
+        code: i32,
+        /// Error message
+        message: String,
+    },
+
     /// Failed to query device parameters
     #[error("Failed to query device system parameters ({code}) {message}")]
     DeviceQuerySystemParametersFailed {

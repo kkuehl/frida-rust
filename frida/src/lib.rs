@@ -13,6 +13,21 @@
 
 use std::ffi::CStr;
 
+/// The code and message of a `GError` frida-core returned, and free it.
+pub(crate) unsafe fn take_gerror(error: *mut frida_sys::GError) -> (i32, String) {
+    let code = unsafe { (*error).code };
+    let message = unsafe { (*error).message };
+    let message = if message.is_null() {
+        String::new()
+    } else {
+        unsafe { CStr::from_ptr(message) }
+            .to_string_lossy()
+            .into_owned()
+    };
+    unsafe { frida_sys::g_error_free(error) };
+    (code, message)
+}
+
 mod barebone;
 pub use barebone::*;
 

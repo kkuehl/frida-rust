@@ -4,6 +4,7 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
+use crate::take_gerror;
 use frida_sys::_FridaDevice;
 use std::collections::HashMap;
 use std::ffi::{CStr, CString};
@@ -134,10 +135,34 @@ impl<'a> Device<'a> {
     where
         'a: 'b,
     {
+        self.try_enumerate_processes_with_options(scope)
+            .unwrap_or_default()
+    }
+
+    /// As [`Device::enumerate_processes_with_options`], but returns frida-core's
+    /// error instead of an empty list.
+    ///
+    /// The plain method cannot report a failure, and before this could not
+    /// survive one either: the list was unref'd even when the call failed and
+    /// the pointer was NULL, which is a `g_object_unref(NULL)` on frida's main
+    /// loop and takes the process down.
+    pub fn try_enumerate_processes_with_options<'b>(
+        &'a self,
+        scope: Scope,
+    ) -> Result<Vec<Process<'b>>>
+    where
+        'a: 'b,
+    {
         let mut processes = Vec::new();
         let mut error: *mut frida_sys::GError = std::ptr::null_mut();
 
         let opts = unsafe { frida_sys::frida_process_query_options_new() };
+        if opts.is_null() {
+            return Err(Error::DeviceEnumerateProcessesFailed {
+                code: 0,
+                message: "frida-core could not allocate the query options".to_string(),
+            });
+        }
         unsafe {
             frida_sys::frida_process_query_options_set_scope(opts, scope as frida_sys::FridaScope);
         }
@@ -153,19 +178,28 @@ impl<'a> Device<'a> {
 
         unsafe { frida_sys::frida_unref(opts as _) };
 
-        if error.is_null() {
-            let num_processes = unsafe { frida_sys::frida_process_list_size(processes_ptr) };
-            processes.reserve(num_processes as usize);
-
-            for i in 0..num_processes {
-                let process_ptr = unsafe { frida_sys::frida_process_list_get(processes_ptr, i) };
-                let process = Process::from_raw(process_ptr);
-                processes.push(process);
+        if !error.is_null() {
+            if !processes_ptr.is_null() {
+                unsafe { frida_sys::frida_unref(processes_ptr as _) };
             }
+            let (code, message) = unsafe { take_gerror(error) };
+            return Err(Error::DeviceEnumerateProcessesFailed { code, message });
+        }
+
+        if processes_ptr.is_null() {
+            return Ok(processes);
+        }
+
+        let num_processes = unsafe { frida_sys::frida_process_list_size(processes_ptr) };
+        processes.reserve(num_processes as usize);
+
+        for i in 0..num_processes {
+            let process_ptr = unsafe { frida_sys::frida_process_list_get(processes_ptr, i) };
+            processes.push(Process::from_raw(process_ptr));
         }
 
         unsafe { frida_sys::frida_unref(processes_ptr as _) };
-        processes
+        Ok(processes)
     }
 
     /// Creates [`Session`] and attaches the device to the current PID.

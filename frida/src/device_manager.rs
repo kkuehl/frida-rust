@@ -39,6 +39,20 @@ impl<'a> DeviceManager<'a> {
     where
         'a: 'b,
     {
+        self.try_enumerate_all_devices().unwrap_or_default()
+    }
+
+    /// As [`DeviceManager::enumerate_all_devices`], but returns frida-core's
+    /// error instead of an empty list.
+    ///
+    /// The plain method cannot report a failure, and before this could not
+    /// survive one either: the list was unref'd even when the call failed and
+    /// the pointer was NULL, which is a `g_object_unref(NULL)` on frida's main
+    /// loop and takes the process down.
+    pub fn try_enumerate_all_devices<'b>(&'a self) -> Result<Vec<Device<'b>>>
+    where
+        'a: 'b,
+    {
         let mut devices = Vec::new();
         let mut error: *mut frida_sys::GError = std::ptr::null_mut();
 
@@ -50,19 +64,29 @@ impl<'a> DeviceManager<'a> {
             )
         };
 
-        if error.is_null() {
-            let num_devices = unsafe { frida_sys::frida_device_list_size(devices_ptr) };
-            devices.reserve(num_devices as usize);
-
-            for i in 0..num_devices {
-                let device =
-                    Device::from_raw(unsafe { frida_sys::frida_device_list_get(devices_ptr, i) });
-                devices.push(device);
+        if !error.is_null() {
+            if !devices_ptr.is_null() {
+                unsafe { frida_sys::frida_unref(devices_ptr as _) };
             }
+            let (code, message) = unsafe { crate::take_gerror(error) };
+            return Err(Error::DeviceEnumerateDevicesFailed { code, message });
         }
 
-        unsafe { frida_sys::frida_unref(devices_ptr as _) }
-        devices
+        if devices_ptr.is_null() {
+            return Ok(devices);
+        }
+
+        let num_devices = unsafe { frida_sys::frida_device_list_size(devices_ptr) };
+        devices.reserve(num_devices as usize);
+
+        for i in 0..num_devices {
+            let device =
+                Device::from_raw(unsafe { frida_sys::frida_device_list_get(devices_ptr, i) });
+            devices.push(device);
+        }
+
+        unsafe { frida_sys::frida_unref(devices_ptr as _) };
+        Ok(devices)
     }
 
     /// Returns the device of the specified type.
