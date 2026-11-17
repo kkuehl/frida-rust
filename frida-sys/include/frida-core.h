@@ -67915,11 +67915,11 @@ G_END_DECLS
 
 #undef __JSON_GLIB_INSIDE__
 
-#define FRIDA_VERSION "17.26.3"
+#define FRIDA_VERSION "17.26.4"
 
 #define FRIDA_MAJOR_VERSION 17
 #define FRIDA_MINOR_VERSION 26
-#define FRIDA_MICRO_VERSION 3
+#define FRIDA_MICRO_VERSION 4
 #define FRIDA_NANO_VERSION 0
 
 #define FRIDA_CHECK_VERSION(maj, min, mic) \
@@ -67962,6 +67962,7 @@ typedef struct _FridaBareboneHostlinkPortsFabric FridaBareboneHostlinkPortsFabri
 typedef struct _FridaBareboneHostlinkMmioFabric FridaBareboneHostlinkMmioFabric;
 typedef struct _FridaBareboneVsockTransportConfig FridaBareboneVsockTransportConfig;
 typedef struct _FridaBareboneSerialTransportConfig FridaBareboneSerialTransportConfig;
+typedef struct _FridaBareboneUartTransportConfig FridaBareboneUartTransportConfig;
 typedef struct _FridaBareboneVsockPipeTransportConfig FridaBareboneVsockPipeTransportConfig;
 typedef struct _FridaBareboneGoldfishPipeTransportConfig FridaBareboneGoldfishPipeTransportConfig;
 typedef struct _FridaBareboneDeviceTransportConfig FridaBareboneDeviceTransportConfig;
@@ -69093,6 +69094,19 @@ const gchar * frida_barebone_serial_transport_config_get_path (FridaBareboneSeri
 
 void frida_barebone_serial_transport_config_set_path (FridaBareboneSerialTransportConfig * self, const gchar * value);
 
+/* BareboneUartTransportConfig */
+FridaBareboneUartTransportConfig * frida_barebone_uart_transport_config_new (void);
+
+const gchar * frida_barebone_uart_transport_config_get_path (FridaBareboneUartTransportConfig * self);
+guint64 frida_barebone_uart_transport_config_get_mmio (FridaBareboneUartTransportConfig * self);
+guint frida_barebone_uart_transport_config_get_irq (FridaBareboneUartTransportConfig * self);
+guint frida_barebone_uart_transport_config_get_interrupt_parent (FridaBareboneUartTransportConfig * self);
+
+void frida_barebone_uart_transport_config_set_path (FridaBareboneUartTransportConfig * self, const gchar * value);
+void frida_barebone_uart_transport_config_set_mmio (FridaBareboneUartTransportConfig * self, guint64 value);
+void frida_barebone_uart_transport_config_set_irq (FridaBareboneUartTransportConfig * self, guint value);
+void frida_barebone_uart_transport_config_set_interrupt_parent (FridaBareboneUartTransportConfig * self, guint value);
+
 /* BareboneVsockPipeTransportConfig */
 FridaBareboneVsockPipeTransportConfig * frida_barebone_vsock_pipe_transport_config_new (void);
 
@@ -69993,6 +70007,7 @@ GType frida_barebone_hostlink_ports_fabric_get_type (void) G_GNUC_CONST;
 GType frida_barebone_hostlink_mmio_fabric_get_type (void) G_GNUC_CONST;
 GType frida_barebone_vsock_transport_config_get_type (void) G_GNUC_CONST;
 GType frida_barebone_serial_transport_config_get_type (void) G_GNUC_CONST;
+GType frida_barebone_uart_transport_config_get_type (void) G_GNUC_CONST;
 GType frida_barebone_vsock_pipe_transport_config_get_type (void) G_GNUC_CONST;
 GType frida_barebone_goldfish_pipe_transport_config_get_type (void) G_GNUC_CONST;
 GType frida_barebone_device_transport_config_get_type (void) G_GNUC_CONST;
@@ -70255,6 +70270,10 @@ GType frida_library_options_get_type (void) G_GNUC_CONST;
 #define FRIDA_TYPE_BAREBONE_SERIAL_TRANSPORT_CONFIG (frida_barebone_serial_transport_config_get_type ())
 #define FRIDA_BAREBONE_SERIAL_TRANSPORT_CONFIG(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj), FRIDA_TYPE_BAREBONE_SERIAL_TRANSPORT_CONFIG, FridaBareboneSerialTransportConfig))
 #define FRIDA_IS_BAREBONE_SERIAL_TRANSPORT_CONFIG(obj) (G_TYPE_CHECK_INSTANCE_TYPE ((obj), FRIDA_TYPE_BAREBONE_SERIAL_TRANSPORT_CONFIG))
+
+#define FRIDA_TYPE_BAREBONE_UART_TRANSPORT_CONFIG (frida_barebone_uart_transport_config_get_type ())
+#define FRIDA_BAREBONE_UART_TRANSPORT_CONFIG(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj), FRIDA_TYPE_BAREBONE_UART_TRANSPORT_CONFIG, FridaBareboneUartTransportConfig))
+#define FRIDA_IS_BAREBONE_UART_TRANSPORT_CONFIG(obj) (G_TYPE_CHECK_INSTANCE_TYPE ((obj), FRIDA_TYPE_BAREBONE_UART_TRANSPORT_CONFIG))
 
 #define FRIDA_TYPE_BAREBONE_VSOCK_PIPE_TRANSPORT_CONFIG (frida_barebone_vsock_pipe_transport_config_get_type ())
 #define FRIDA_BAREBONE_VSOCK_PIPE_TRANSPORT_CONFIG(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj), FRIDA_TYPE_BAREBONE_VSOCK_PIPE_TRANSPORT_CONFIG, FridaBareboneVsockPipeTransportConfig))
