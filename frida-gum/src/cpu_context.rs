@@ -118,9 +118,11 @@ impl CpuContext {
     }
 
     fn as_ptr(&self) -> *const GumCpuContext {
-        match self.cpu_context {
-            CpuContextType::ReadOnly(ctx) => &ctx as *const GumCpuContext,
-            CpuContextType::ReadWrite(ctx) => ctx as *const GumCpuContext,
+        // Matched by reference: by value, a read-only context's registers are copied into the
+        // match arm, and the pointer returned is to that copy, which is gone by then.
+        match &self.cpu_context {
+            CpuContextType::ReadOnly(ctx) => ctx as *const GumCpuContext,
+            CpuContextType::ReadWrite(ctx) => *ctx as *const GumCpuContext,
         }
     }
 
@@ -229,3 +231,32 @@ impl CpuContext {
 }
 
 REG_LIST!(gen_debug);
+
+#[cfg(all(kani, any(target_arch = "aarch64", target_arch = "x86_64")))]
+mod verification {
+    use super::*;
+
+    /// A read-only context reads a register out of its own copy of the registers, which is
+    /// still there when it is read.
+    #[kani::proof]
+    fn read_only_context_reads_its_own_copy() {
+        let value: u64 = kani::any();
+        // SAFETY: the registers are plain numbers, so all zeroes is a valid set of them.
+        let mut registers: GumCpuContext = unsafe { core::mem::zeroed() };
+        #[cfg(target_arch = "aarch64")]
+        {
+            registers.pc = value;
+        }
+        #[cfg(target_arch = "x86_64")]
+        {
+            registers.rip = value;
+        }
+
+        let context = CpuContext::from_raw(&mut registers, CpuContextAccess::CpuContextReadOnly);
+
+        #[cfg(target_arch = "aarch64")]
+        assert!(context.pc() == value);
+        #[cfg(target_arch = "x86_64")]
+        assert!(context.rip() == value);
+    }
+}

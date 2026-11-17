@@ -233,3 +233,40 @@ fn exports_with_a_prefix_are_the_exports_whose_names_start_with_it() {
     assert_eq!(with_prefix, expected);
     assert!(module.enumerate_exports_with_prefix("\0").is_empty());
 }
+
+#[test]
+fn memory_range_reaching_past_the_address_space_ends_at_the_top() {
+    // The base and the size are the caller's, so their sum may not fit. It used to be added
+    // unchecked, which panics in a debug build and wraps to a backwards range in a release one.
+    let range = MemoryRange::new(NativePointer(usize::MAX as *mut c_void), 0x1000);
+
+    let converted: std::ops::Range<usize> = (&range).into();
+    assert_eq!(converted, usize::MAX..usize::MAX);
+
+    let top = usize::MAX;
+    assert_eq!(format!("{range}"), format!("{top}..{top}"));
+    assert_eq!(format!("{range:x}"), format!("{top:x}..{top:x}"));
+    assert_eq!(format!("{range:X}"), format!("{top:X}..{top:X}"));
+}
+
+#[test]
+fn module_map_that_rejects_every_module_has_no_values() {
+    // GLib leaves an empty array's storage unallocated, and a slice made from that null pointer
+    // is undefined behaviour, which a debug build stops at.
+    let _gum = &*GUM;
+    let map = frida_gum::ModuleMap::new_with_filter(|_| false);
+    assert!(map.values().is_empty());
+}
+
+#[test]
+fn process_platform_is_this_platform() {
+    // Every OS Gum reports has a variant (proved by Kani), so this cannot panic.
+    let platform = Process::obtain(&GUM).platform();
+    #[cfg(target_os = "macos")]
+    assert!(matches!(platform, frida_gum::Os::Macos));
+    #[cfg(target_os = "linux")]
+    assert!(matches!(platform, frida_gum::Os::Linux));
+    #[cfg(target_os = "windows")]
+    assert!(matches!(platform, frida_gum::Os::Windows));
+    let _ = platform;
+}

@@ -39,6 +39,9 @@ bitflags = "2.10.0"
 frida-gum-sys = { path = "../frida-gum-sys", version = "0.17.2" }
 lazy_static = "1"
 
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(kani)'] }
+
 [badges]
 maintenance = { status = "experimental" }
 

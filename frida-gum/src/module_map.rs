@@ -106,6 +106,11 @@ impl ModuleMap {
     pub fn values(&self) -> Vec<Module> {
         unsafe {
             let array = gum_sys::gum_module_map_get_values(self.module_map);
+            // GLib allocates an array's storage on the first insert, so an empty map has none,
+            // and a slice may not start at a null pointer even when it is empty.
+            if (*array).pdata.is_null() {
+                return Vec::new();
+            }
             let raw_module_details = from_raw_parts(
                 (*array).pdata as *const *mut gum_sys::GumModule,
                 (*array).len as usize,

@@ -94,6 +94,14 @@ impl FileMapping<'_> {
     }
 }
 
+/// Whether `address` is one of the `size` addresses starting at `base`.
+///
+/// The end of the range is never computed, as it does not fit when the range reaches the end of
+/// the address space, and this is called from a C callback, where an overflow would abort.
+fn range_contains(base: u64, size: u64, address: u64) -> bool {
+    address >= base && address - base < size
+}
+
 struct SaveRangeDetailsByAddressContext<'a> {
     address: u64,
     details: Option<RangeDetails<'a>>,
@@ -106,9 +114,7 @@ unsafe extern "C" fn save_range_details_by_address(
     unsafe {
         let context = &mut *(context as *mut SaveRangeDetailsByAddressContext);
         let range = (*details).range;
-        let start = (*range).base_address as u64;
-        let end = start + (*range).size as u64;
-        if start <= context.address && context.address < end {
+        if range_contains((*range).base_address, (*range).size as u64, context.address) {
             context.details = Some(RangeDetails::from_raw(details));
             return 0;
         }
@@ -200,5 +206,36 @@ impl<'a> RangeDetails<'a> {
     /// The associated file mapping, if present.
     pub fn file_mapping(&self) -> Option<FileMapping<'_>> {
         self.file.clone()
+    }
+}
+
+#[cfg(kani)]
+mod verification {
+    use super::*;
+
+    /// `range_contains` agrees with the definition of a half-open range for every input, worked
+    /// out in 128 bits where the end always fits.
+    #[kani::proof]
+    fn range_contains_matches_its_definition() {
+        let base: u64 = kani::any();
+        let size: u64 = kani::any();
+        let address: u64 = kani::any();
+        let end = base as u128 + size as u128;
+        let expected = base <= address && (address as u128) < end;
+        assert!(range_contains(base, size, address) == expected);
+    }
+
+    /// Frida reports a page's protection as any combination of read, write and execute. Each
+    /// has a variant of its own, so [`RangeDetails`] never falls back to `NoAccess` for one.
+    #[kani::proof]
+    fn every_protection_has_a_variant() {
+        let raw: u32 = kani::any();
+        let all = PageProtection::ReadWriteExecute as u32;
+        let protection: Option<PageProtection> = num::FromPrimitive::from_u32(raw);
+        if raw <= all {
+            assert!(protection.is_some_and(|protection| protection as u32 == raw));
+        } else {
+            assert!(protection.is_none());
+        }
     }
 }

@@ -50,12 +50,15 @@ pub enum TeardownRequirement {
 #[derive(Clone, FromPrimitive, Debug)]
 #[repr(u32)]
 pub enum Os {
+    /// No operating system: Gum built to run on bare metal.
+    None = gum_sys::_GumOS_GUM_OS_NONE as u32,
     Windows = gum_sys::_GumOS_GUM_OS_WINDOWS as u32,
     Macos = gum_sys::_GumOS_GUM_OS_MACOS as u32,
     Linux = gum_sys::_GumOS_GUM_OS_LINUX as u32,
     Ios = gum_sys::_GumOS_GUM_OS_IOS as u32,
     Watchos = gum_sys::_GumOS_GUM_OS_WATCHOS as u32,
     Tvos = gum_sys::_GumOS_GUM_OS_TVOS as u32,
+    Xros = gum_sys::_GumOS_GUM_OS_XROS as u32,
     Android = gum_sys::_GumOS_GUM_OS_ANDROID as u32,
     Freebsd = gum_sys::_GumOS_GUM_OS_FREEBSD as u32,
     Qnx = gum_sys::_GumOS_GUM_OS_QNX as u32,
@@ -452,5 +455,20 @@ impl Debug for Range<'_> {
             .field("protection", &self.protection)
             .field("file", &self.file)
             .finish()
+    }
+}
+
+#[cfg(kani)]
+mod verification {
+    use super::*;
+
+    /// Every operating system Gum can report has a variant, so [`Process::platform`] has one to
+    /// return on each of them.
+    #[kani::proof]
+    fn every_os_has_a_variant() {
+        let raw: u32 = kani::any();
+        kani::assume(raw <= gum_sys::_GumOS_GUM_OS_QNX as u32);
+        let os: Option<Os> = num::FromPrimitive::from_u32(raw);
+        assert!(os.is_some_and(|os| os as u32 == raw));
     }
 }

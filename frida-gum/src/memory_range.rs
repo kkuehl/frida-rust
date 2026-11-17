@@ -151,6 +151,12 @@ impl MemoryRange {
         self.memory_range.size as usize
     }
 
+    /// The address just past the range, or the highest address when the range would reach
+    /// beyond it. The base and the size are any two numbers, so their sum need not fit.
+    fn end(&self) -> usize {
+        (self.base_address().0 as usize).saturating_add(self.size())
+    }
+
     pub fn scan(&self, pattern: &MatchPattern) -> Vec<ScanResult> {
         let mut results = Vec::new();
         unsafe {
@@ -191,7 +197,7 @@ impl LowerHex for MemoryRange {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         LowerHex::fmt(&self.base_address(), f)?;
         write!(f, "..")?;
-        LowerHex::fmt(&(self.base_address().0 as usize + self.size()), f)
+        LowerHex::fmt(&self.end(), f)
     }
 }
 
@@ -199,18 +205,13 @@ impl UpperHex for MemoryRange {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         UpperHex::fmt(&self.base_address(), f)?;
         write!(f, "..")?;
-        UpperHex::fmt(&(self.base_address().0 as usize + self.size()), f)
+        UpperHex::fmt(&self.end(), f)
     }
 }
 
 impl Display for MemoryRange {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "{}..{}",
-            self.base_address(),
-            self.base_address().0 as usize + self.size()
-        )
+        write!(f, "{}..{}", self.base_address(), self.end())
     }
 }
 
@@ -223,12 +224,31 @@ impl Debug for MemoryRange {
 
 impl From<&MemoryRange> for Range<usize> {
     fn from(value: &MemoryRange) -> Self {
-        value.base_address().0 as usize..(value.base_address().0 as usize + value.size())
+        value.base_address().0 as usize..value.end()
     }
 }
 
 impl From<MemoryRange> for Range<usize> {
     fn from(value: MemoryRange) -> Self {
         (&value).into()
+    }
+}
+
+#[cfg(kani)]
+mod verification {
+    use super::*;
+
+    /// A range made from any base and size converts without overflowing, to a range that starts
+    /// at the base and ends at the sum, or at the highest address when the sum does not fit.
+    #[kani::proof]
+    fn range_end_never_overflows() {
+        let base: usize = kani::any();
+        let size: usize = kani::any();
+        let range = MemoryRange::new(NativePointer(base as *mut c_void), size);
+        let converted: Range<usize> = (&range).into();
+        assert!(converted.start == base);
+        assert!(converted.start <= converted.end);
+        let expected = base.checked_add(size).unwrap_or(usize::MAX);
+        assert!(converted.end == expected);
     }
 }
