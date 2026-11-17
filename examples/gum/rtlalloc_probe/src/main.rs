@@ -14,6 +14,15 @@ extern "C" fn rtl_detour(heap: *mut c_void, flags: u32, size: usize) -> *mut c_v
 }
 
 fn main() {
+    // The DLL to probe: the first argument, or the VULN_DLL environment variable.
+    let dll_path = std::env::args()
+        .nth(1)
+        .or_else(|| std::env::var("VULN_DLL").ok())
+        .unwrap_or_else(|| {
+            eprintln!("usage: rtlalloc-probe <path to DLL>, or set VULN_DLL to it");
+            std::process::exit(2);
+        });
+
     let gum = Gum::obtain();
     let mut interceptor = Interceptor::obtain(&gum);
 
@@ -34,10 +43,6 @@ fn main() {
     println!("hooked RtlAllocateHeap @ {:#x}", target.0 as usize);
 
     // Load the vulnerable DLL and call parse_heap_overflow with a 65-byte input.
-    let dll_path = std::env::var("VULN_DLL").unwrap_or_else(|_| {
-        r"C:\Users\Kirby Kuehl\Source\Repos\mimic-core\mimicx-mcp\target\debug\vulnerable_functions.dll".to_owned()
-    });
-
     let lib = unsafe { libloading::Library::new(&dll_path) }
         .unwrap_or_else(|e| panic!("failed to load {dll_path}: {e}"));
     let parse: libloading::Symbol<unsafe extern "C" fn(*const u8, usize) -> i32> =
