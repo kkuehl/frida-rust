@@ -67915,11 +67915,11 @@ G_END_DECLS
 
 #undef __JSON_GLIB_INSIDE__
 
-#define FRIDA_VERSION "17.26.4"
+#define FRIDA_VERSION "17.27.1"
 
 #define FRIDA_MAJOR_VERSION 17
-#define FRIDA_MINOR_VERSION 26
-#define FRIDA_MICRO_VERSION 4
+#define FRIDA_MINOR_VERSION 27
+#define FRIDA_MICRO_VERSION 1
 #define FRIDA_NANO_VERSION 0
 
 #define FRIDA_CHECK_VERSION(maj, min, mic) \
@@ -68016,6 +68016,7 @@ typedef struct _FridaPackageSearchOptions FridaPackageSearchOptions;
 typedef struct _FridaPackageSearchResult FridaPackageSearchResult;
 typedef struct _FridaPackageInstallOptions FridaPackageInstallOptions;
 typedef struct _FridaPackageInstallResult FridaPackageInstallResult;
+typedef struct _FridaBinaryMetadata FridaBinaryMetadata;
 typedef struct _FridaControlService FridaControlService;
 typedef struct _FridaControlServiceOptions FridaControlServiceOptions;
 typedef struct _FridaPortalService FridaPortalService;
@@ -69257,6 +69258,7 @@ FridaSessionOptions * frida_session_options_new (void);
 FridaRealm frida_session_options_get_realm (FridaSessionOptions * self);
 guint frida_session_options_get_persist_timeout (FridaSessionOptions * self);
 const gchar * frida_session_options_get_emulated_agent_path (FridaSessionOptions * self);
+const gchar * frida_session_options_get_gadget_path (FridaSessionOptions * self);
 FridaExceptor frida_session_options_get_exceptor (FridaSessionOptions * self);
 gboolean frida_session_options_get_unwind_broker (FridaSessionOptions * self);
 gboolean frida_session_options_get_exit_monitor (FridaSessionOptions * self);
@@ -69268,6 +69270,7 @@ void frida_session_options_enumerate_linker_notifier_offsets (FridaSessionOption
 void frida_session_options_set_realm (FridaSessionOptions * self, FridaRealm value);
 void frida_session_options_set_persist_timeout (FridaSessionOptions * self, guint value);
 void frida_session_options_set_emulated_agent_path (FridaSessionOptions * self, const gchar * value);
+void frida_session_options_set_gadget_path (FridaSessionOptions * self, const gchar * value);
 void frida_session_options_set_exceptor (FridaSessionOptions * self, FridaExceptor value);
 void frida_session_options_set_unwind_broker (FridaSessionOptions * self, gboolean value);
 void frida_session_options_set_exit_monitor (FridaSessionOptions * self, gboolean value);
@@ -69562,6 +69565,13 @@ void frida_package_install_options_set_role (FridaPackageInstallOptions * self, 
 
 /* PackageInstallResult */
 FridaPackageList * frida_package_install_result_get_packages (FridaPackageInstallResult * self);
+
+/* BinaryMetadata */
+const gchar * frida_binary_metadata_get_name (FridaBinaryMetadata * self);
+const gchar * frida_binary_metadata_get_version (FridaBinaryMetadata * self);
+gchar ** frida_binary_metadata_get_architectures (FridaBinaryMetadata * self, gint * result_length);
+
+FridaBinaryMetadata * frida_binary_metadata_from_file (const gchar * path, GError ** error);
 
 /* ControlService */
 FridaControlService * frida_control_service_new (FridaEndpointParameters * endpoint_params, FridaControlServiceOptions * options, GError ** error);
@@ -70059,6 +70069,7 @@ GType frida_package_search_options_get_type (void) G_GNUC_CONST;
 GType frida_package_search_result_get_type (void) G_GNUC_CONST;
 GType frida_package_install_options_get_type (void) G_GNUC_CONST;
 GType frida_package_install_result_get_type (void) G_GNUC_CONST;
+GType frida_binary_metadata_get_type (void) G_GNUC_CONST;
 GType frida_control_service_get_type (void) G_GNUC_CONST;
 GType frida_control_service_options_get_type (void) G_GNUC_CONST;
 GType frida_portal_service_get_type (void) G_GNUC_CONST;
@@ -70478,6 +70489,10 @@ GType frida_library_options_get_type (void) G_GNUC_CONST;
 #define FRIDA_TYPE_PACKAGE_INSTALL_RESULT (frida_package_install_result_get_type ())
 #define FRIDA_PACKAGE_INSTALL_RESULT(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj), FRIDA_TYPE_PACKAGE_INSTALL_RESULT, FridaPackageInstallResult))
 #define FRIDA_IS_PACKAGE_INSTALL_RESULT(obj) (G_TYPE_CHECK_INSTANCE_TYPE ((obj), FRIDA_TYPE_PACKAGE_INSTALL_RESULT))
+
+#define FRIDA_TYPE_BINARY_METADATA (frida_binary_metadata_get_type ())
+#define FRIDA_BINARY_METADATA(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj), FRIDA_TYPE_BINARY_METADATA, FridaBinaryMetadata))
+#define FRIDA_IS_BINARY_METADATA(obj) (G_TYPE_CHECK_INSTANCE_TYPE ((obj), FRIDA_TYPE_BINARY_METADATA))
 
 #define FRIDA_TYPE_CONTROL_SERVICE (frida_control_service_get_type ())
 #define FRIDA_CONTROL_SERVICE(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj), FRIDA_TYPE_CONTROL_SERVICE, FridaControlService))

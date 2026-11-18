@@ -11,7 +11,7 @@ use std::ffi::{CStr, CString};
 use std::marker::PhantomData;
 
 use crate::process::Process;
-use crate::session::Session;
+use crate::session::{Session, SessionOptions};
 use crate::variant::Variant;
 use crate::{Error, Result, SpawnOptions};
 
@@ -207,12 +207,25 @@ impl<'a> Device<'a> {
     where
         'a: 'b,
     {
+        self.attach_with_options(pid, SessionOptions::new())
+    }
+
+    /// Creates [`Session`] and attaches the device to the current PID with the
+    /// given [`SessionOptions`].
+    pub fn attach_with_options<'b>(
+        &'a self,
+        pid: u32,
+        options: SessionOptions,
+    ) -> Result<Session<'b>>
+    where
+        'a: 'b,
+    {
         let mut error: *mut frida_sys::GError = std::ptr::null_mut();
         let session = unsafe {
             frida_sys::frida_device_attach_sync(
                 self.device_ptr,
                 pid,
-                std::ptr::null_mut(),
+                options.options_ptr,
                 std::ptr::null_mut(),
                 &mut error,
             )

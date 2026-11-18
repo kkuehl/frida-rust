@@ -145,6 +145,15 @@ pub enum Error {
         message: String,
     },
 
+    /// Failed to read a binary's embedded metadata.
+    #[error("Failed to read binary metadata ({code}) {message}")]
+    BinaryMetadataFailed {
+        /// Error code
+        code: i32,
+        /// Error message
+        message: String,
+    },
+
     /// Received unexpected RPC message.
     #[error("Unexpected RPC message received.")]
     RpcUnexpectedMessage,

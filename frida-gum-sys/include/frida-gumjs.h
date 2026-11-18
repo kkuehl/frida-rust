@@ -84453,6 +84453,9 @@ G_BEGIN_DECLS
 #define GUM_TYPE_ELF_MODULE (gum_elf_module_get_type ())
 G_DECLARE_FINAL_TYPE (GumElfModule, gum_elf_module, GUM, ELF_MODULE, GObject)
 
+#define GUM_TYPE_ELF_SECTION_DETAILS (gum_elf_section_details_get_type ())
+#define GUM_TYPE_ELF_SYMBOL_DETAILS (gum_elf_symbol_details_get_type ())
+
 typedef enum {
   GUM_ELF_NONE,
   GUM_ELF_REL,
@@ -87487,7 +87490,7 @@ GUM_API GumPeSourceMode gum_pe_module_get_source_mode (GumPeModule * self);
 GUM_API const GumPeDataDirectory * gum_pe_module_get_directory (
     GumPeModule * self, GumPeDirectoryIndex index);
 GUM_API gconstpointer gum_pe_module_get_data_at_rva (GumPeModule * self,
-    guint32 rva);
+    guint32 rva, gsize * size);
 
 GUM_API void gum_pe_module_enumerate_sections (GumPeModule * self,
     GumFoundPeSectionFunc func, gpointer user_data);

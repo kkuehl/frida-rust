@@ -4,13 +4,141 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
-use frida_sys::{_FridaSession, g_bytes_get_data, g_bytes_new, g_bytes_unref, gsize};
-use std::ffi::CString;
+use frida_sys::{
+    _FridaSession, _FridaSessionOptions, g_bytes_get_data, g_bytes_new, g_bytes_unref, gsize,
+};
+use std::ffi::{CStr, CString};
 use std::marker::PhantomData;
 use std::ptr::null_mut;
 
 use crate::script::{Script, ScriptOption};
 use crate::{Error, Result};
+
+/// Which realm (gum) a session's scripts run in. Values match `FridaRealm`.
+#[repr(u32)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
+pub enum Realm {
+    /// The native realm.
+    Native = 0,
+    /// The emulated realm (e.g. Android's native bridge under the
+    /// x86_64 emulator).
+    Emulated = 1,
+}
+
+/// Where an exception is delivered while a script runs. Values match
+/// `FridaExceptor`.
+#[repr(u32)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
+pub enum Exceptor {
+    /// Deliver the exception to the script (default).
+    Full = 0,
+    /// Invoke only the configured exception handler.
+    HandlerOnly = 1,
+    /// Ignore the exception entirely.
+    Off = 2,
+}
+
+/// Options for [`Device::attach`](crate::Device::attach) and
+/// [`Device::attach_with_options`](crate::Device::attach_with_options).
+///
+/// Among these, [`gadget_path`](SessionOptions::gadget_path) is what selects a
+/// custom Gadget when attaching by injection on jailed iOS and non-rooted
+/// Android (Frida 17.27+ attaches to running debuggable apps over JDWP).
+pub struct SessionOptions<'a> {
+    pub(crate) options_ptr: *mut _FridaSessionOptions,
+    phantom: PhantomData<&'a _FridaSessionOptions>,
+}
+
+impl SessionOptions<'_> {
+    pub(crate) fn from_raw(options_ptr: *mut _FridaSessionOptions) -> Self {
+        Self {
+            options_ptr,
+            phantom: PhantomData,
+        }
+    }
+
+    /// Create an empty SessionOptions instance.
+    pub fn new() -> Self {
+        Self::from_raw(unsafe { frida_sys::frida_session_options_new() })
+    }
+
+    /// Which [`Realm`] scripts created on the session run in.
+    pub fn realm(self, realm: Realm) -> Self {
+        unsafe { frida_sys::frida_session_options_set_realm(self.options_ptr, realm as _) }
+        self
+    }
+
+    /// How long, in milliseconds, a script keeps running after the session
+    /// is detached (see `frida-session-options-set-persist-timeout`).
+    pub fn persist_timeout(self, timeout: u32) -> Self {
+        unsafe { frida_sys::frida_session_options_set_persist_timeout(self.options_ptr, timeout) }
+        self
+    }
+
+    /// Path to the emulated (native-bridge) agent to load.
+    pub fn emulated_agent_path<S: AsRef<CStr>>(self, path: S) -> Self {
+        unsafe {
+            frida_sys::frida_session_options_set_emulated_agent_path(
+                self.options_ptr,
+                path.as_ref().as_ptr() as *mut _,
+            );
+        }
+        self
+    }
+
+    /// Path to the Gadget to inject when attaching by injection on jailed
+    /// iOS and non-rooted Android. Frida 17.27+.
+    pub fn gadget_path<S: AsRef<CStr>>(self, path: S) -> Self {
+        unsafe {
+            frida_sys::frida_session_options_set_gadget_path(
+                self.options_ptr,
+                path.as_ref().as_ptr() as *mut _,
+            );
+        }
+        self
+    }
+
+    /// Where exceptions are delivered while scripts run.
+    pub fn exceptor(self, exceptor: Exceptor) -> Self {
+        unsafe { frida_sys::frida_session_options_set_exceptor(self.options_ptr, exceptor as _) }
+        self
+    }
+
+    /// Whether the UnwindBroker is enabled (default is platform-dependent).
+    pub fn unwind_broker(self, enable: bool) -> Self {
+        unsafe { frida_sys::frida_session_options_set_unwind_broker(self.options_ptr, enable as _) }
+        self
+    }
+
+    /// Whether the ExitMonitor is enabled.
+    pub fn exit_monitor(self, enable: bool) -> Self {
+        unsafe { frida_sys::frida_session_options_set_exit_monitor(self.options_ptr, enable as _) }
+        self
+    }
+
+    /// Whether the ThreadSuspendMonitor is enabled.
+    pub fn thread_suspend_monitor(self, enable: bool) -> Self {
+        unsafe {
+            frida_sys::frida_session_options_set_thread_suspend_monitor(
+                self.options_ptr,
+                enable as _,
+            )
+        }
+        self
+    }
+}
+
+impl Default for SessionOptions<'_> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Drop for SessionOptions<'_> {
+    fn drop(&mut self) {
+        unsafe { frida_sys::frida_unref(self.options_ptr as _) }
+    }
+}
 
 /// Represents a Frida session.
 pub struct Session<'a> {

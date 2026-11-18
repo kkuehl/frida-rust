@@ -31,6 +31,9 @@ pub(crate) unsafe fn take_gerror(error: *mut frida_sys::GError) -> (i32, String)
 mod barebone;
 pub use barebone::*;
 
+mod binary_metadata;
+pub use binary_metadata::*;
+
 mod compiler;
 pub use compiler::*;
 
