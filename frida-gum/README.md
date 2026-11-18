@@ -13,7 +13,7 @@ See the documentation for usage instructions.
 
 ## Verification
 
-Two checkers run in CI besides the tests.
+Two checkers can be run by hand besides the tests. Neither is part of CI.
 
 [Kani](https://model-checking.github.io/kani/) proves the `#[kani::proof]` functions in `src` for every input they can be given:
 

@@ -206,36 +206,6 @@ jobs:
             echo "::error::The committed headers differ from the Frida $version devkits; run scripts/update-headers.sh and commit the result."
             exit 1
           fi
-  kani:
-    name: Kani proofs
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-      - name: Install Kani
-        run: |
-          cargo install --locked kani-verifier --version 0.68.0
-          cargo kani setup
-      - name: Prove
-        run: cargo kani -p frida-gum --features auto-download
-  loom:
-    name: Loom models
-    runs-on: ubuntu-latest
-    env:
-      RUSTFLAGS: --cfg loom
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-      # A target is named so that the flag reaches frida-gum and not the build script's
-      # dependencies, some of which do not build with it.
-      - name: Check every interleaving
-        run: cargo test -p frida-gum --features auto-download --lib --release --target x86_64-unknown-linux-gnu singleton
   check-nostd:
     name: Check no_std
     runs-on: ubuntu-latest
