@@ -260,7 +260,7 @@ fn module_map_that_rejects_every_module_has_no_values() {
 
 #[test]
 fn process_platform_is_this_platform() {
-    // Every OS Gum reports has a variant (proved by Kani), so this cannot panic.
+    // Every OS Gum reports has a variant, so this cannot panic.
     let platform = Process::obtain(&GUM).platform();
     #[cfg(target_os = "macos")]
     assert!(matches!(platform, frida_gum::Os::Macos));

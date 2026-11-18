@@ -68,7 +68,10 @@ use core::{
 };
 
 #[cfg(not(feature = "std"))]
-use alloc::string::String;
+use alloc::{string::String, sync::Arc};
+
+#[cfg(feature = "std")]
+use std::sync::Arc;
 
 pub mod stalker;
 
@@ -127,9 +130,6 @@ mod glib_compat;
 mod enumeration;
 
 mod gobject;
-
-mod singleton;
-use singleton::{Handle, Singleton};
 
 mod memory_range;
 pub use memory_range::*;
@@ -199,8 +199,10 @@ pub struct Gum {
 
 impl Gum {
     pub fn obtain() -> Self {
+        let mut singleton = GUM_SINGLETON.lock();
+        let handle = singleton.get_or_insert_with(|| Arc::new(GumSingleton::obtain()));
         Self {
-            inner: Some(GUM_SINGLETON.obtain(GumSingleton::obtain)),
+            inner: Some(handle.clone()),
         }
     }
 }
@@ -208,21 +210,21 @@ impl Gum {
 impl Drop for Gum {
     fn drop(&mut self) {
         let instance = self.inner.take().expect("instance taken more than once");
-        // If there are no outstanding Gum instances, this drops the singleton.
-        GUM_SINGLETON.release(instance);
+        drop(instance);
+        // If there are no outstanding Gum instances, drop the singleton.
+        let mut singleton = GUM_SINGLETON.lock();
+        let Some(it) = singleton.take_if(|it| Arc::strong_count(it) == 1) else {
+            return;
+        };
+        Arc::try_unwrap(it)
+            .ok()
+            .expect("should destroy the one instance");
     }
 }
 
-#[cfg(not(loom))]
-static GUM_SINGLETON: Singleton<GumSingleton> = Singleton::new();
+static GUM_SINGLETON: spin::Mutex<GumSingletonHandle> = spin::Mutex::new(None);
 
-// loom's lock keeps track of the model it belongs to, so it cannot be made in a constant.
-#[cfg(loom)]
-loom::lazy_static! {
-    static ref GUM_SINGLETON: Singleton<GumSingleton> = Singleton::new();
-}
-
-type GumSingletonHandle = Option<Handle<GumSingleton>>;
+type GumSingletonHandle = Option<Arc<GumSingleton>>;
 
 // A marker type that exists only while Gum is initialized.
 struct GumSingleton;

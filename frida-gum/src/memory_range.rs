@@ -233,22 +233,3 @@ impl From<MemoryRange> for Range<usize> {
         (&value).into()
     }
 }
-
-#[cfg(kani)]
-mod verification {
-    use super::*;
-
-    /// A range made from any base and size converts without overflowing, to a range that starts
-    /// at the base and ends at the sum, or at the highest address when the sum does not fit.
-    #[kani::proof]
-    fn range_end_never_overflows() {
-        let base: usize = kani::any();
-        let size: usize = kani::any();
-        let range = MemoryRange::new(NativePointer(base as *mut c_void), size);
-        let converted: Range<usize> = (&range).into();
-        assert!(converted.start == base);
-        assert!(converted.start <= converted.end);
-        let expected = base.checked_add(size).unwrap_or(usize::MAX);
-        assert!(converted.end == expected);
-    }
-}

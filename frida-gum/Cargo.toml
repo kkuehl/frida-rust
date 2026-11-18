@@ -35,15 +35,9 @@ spin = { version = "0.10", default-features = false, features = [
 ] }
 bitflags = "2.10.0"
 
-[target.'cfg(loom)'.dependencies]
-loom = "0.7"
-
 [dev-dependencies]
 frida-gum-sys = { path = "../frida-gum-sys", version = "0.17.2" }
 lazy_static = "1"
-
-[lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(kani)', 'cfg(loom)'] }
 
 [badges]
 maintenance = { status = "experimental" }

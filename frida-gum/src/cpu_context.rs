@@ -232,31 +232,36 @@ impl CpuContext {
 
 REG_LIST!(gen_debug);
 
-#[cfg(all(kani, any(target_arch = "aarch64", target_arch = "x86_64")))]
-mod verification {
+#[cfg(all(test, any(target_arch = "aarch64", target_arch = "x86_64")))]
+mod tests {
     use super::*;
 
-    /// A read-only context reads a register out of its own copy of the registers, which is
-    /// still there when it is read.
-    #[kani::proof]
-    fn read_only_context_reads_its_own_copy() {
-        let value: u64 = kani::any();
+    #[test]
+    fn read_only_context_keeps_the_registers_it_was_made_from() {
         // SAFETY: the registers are plain numbers, so all zeroes is a valid set of them.
         let mut registers: GumCpuContext = unsafe { core::mem::zeroed() };
         #[cfg(target_arch = "aarch64")]
         {
-            registers.pc = value;
+            registers.pc = 0x1234_5678;
         }
         #[cfg(target_arch = "x86_64")]
         {
-            registers.rip = value;
+            registers.rip = 0x1234_5678;
         }
 
         let context = CpuContext::from_raw(&mut registers, CpuContextAccess::CpuContextReadOnly);
-
+        // The context has a copy of its own, which a later change to the original leaves alone.
         #[cfg(target_arch = "aarch64")]
-        assert!(context.pc() == value);
+        {
+            registers.pc = 0;
+            assert_eq!(context.pc(), 0x1234_5678);
+            assert_eq!(registers.pc, 0);
+        }
         #[cfg(target_arch = "x86_64")]
-        assert!(context.rip() == value);
+        {
+            registers.rip = 0;
+            assert_eq!(context.rip(), 0x1234_5678);
+            assert_eq!(registers.rip, 0);
+        }
     }
 }

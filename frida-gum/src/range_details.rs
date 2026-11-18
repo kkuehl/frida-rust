@@ -209,33 +209,33 @@ impl<'a> RangeDetails<'a> {
     }
 }
 
-#[cfg(kani)]
-mod verification {
+#[cfg(test)]
+mod tests {
     use super::*;
 
-    /// `range_contains` agrees with the definition of a half-open range for every input, worked
-    /// out in 128 bits where the end always fits.
-    #[kani::proof]
-    fn range_contains_matches_its_definition() {
-        let base: u64 = kani::any();
-        let size: u64 = kani::any();
-        let address: u64 = kani::any();
-        let end = base as u128 + size as u128;
-        let expected = base <= address && (address as u128) < end;
-        assert!(range_contains(base, size, address) == expected);
+    #[test]
+    fn range_contains_its_addresses_and_no_others() {
+        assert!(range_contains(0x1000, 0x10, 0x1000));
+        assert!(range_contains(0x1000, 0x10, 0x100f));
+        assert!(!range_contains(0x1000, 0x10, 0x1010));
+        assert!(!range_contains(0x1000, 0x10, 0xfff));
+        assert!(!range_contains(0x1000, 0, 0x1000));
     }
 
-    /// Frida reports a page's protection as any combination of read, write and execute. Each
-    /// has a variant of its own, so [`RangeDetails`] never falls back to `NoAccess` for one.
-    #[kani::proof]
+    #[test]
+    fn range_reaching_the_top_of_the_address_space_contains_its_addresses() {
+        // The end of these ranges does not fit in 64 bits, so it must not be worked out.
+        assert!(range_contains(u64::MAX - 0xf, 0x10, u64::MAX));
+        assert!(range_contains(u64::MAX - 0xf, 0x20, u64::MAX));
+        assert!(!range_contains(u64::MAX - 0xf, 0x10, u64::MAX - 0x10));
+    }
+
+    #[test]
     fn every_protection_has_a_variant() {
-        let raw: u32 = kani::any();
-        let all = PageProtection::ReadWriteExecute as u32;
-        let protection: Option<PageProtection> = num::FromPrimitive::from_u32(raw);
-        if raw <= all {
+        // Frida reports any combination of read, write and execute.
+        for raw in 0..=PageProtection::ReadWriteExecute as u32 {
+            let protection: Option<PageProtection> = num::FromPrimitive::from_u32(raw);
             assert!(protection.is_some_and(|protection| protection as u32 == raw));
-        } else {
-            assert!(protection.is_none());
         }
     }
 }

@@ -458,17 +458,16 @@ impl Debug for Range<'_> {
     }
 }
 
-#[cfg(kani)]
-mod verification {
+#[cfg(test)]
+mod tests {
     use super::*;
 
-    /// Every operating system Gum can report has a variant, so [`Process::platform`] has one to
-    /// return on each of them.
-    #[kani::proof]
+    #[test]
     fn every_os_has_a_variant() {
-        let raw: u32 = kani::any();
-        kani::assume(raw <= gum_sys::_GumOS_GUM_OS_QNX as u32);
-        let os: Option<Os> = num::FromPrimitive::from_u32(raw);
-        assert!(os.is_some_and(|os| os as u32 == raw));
+        // `Process::platform` returns whichever of these Gum was built for.
+        for raw in 0..=gum_sys::_GumOS_GUM_OS_QNX as u32 {
+            let os: Option<Os> = num::FromPrimitive::from_u32(raw);
+            assert!(os.is_some_and(|os| os as u32 == raw));
+        }
     }
 }
