@@ -55,6 +55,15 @@ pub enum Error {
         message: String,
     },
 
+    /// Failed to enumerate the device's applications
+    #[error("Failed to enumerate applications ({code}) {message}")]
+    DeviceEnumerateApplicationsFailed {
+        /// Error code
+        code: i32,
+        /// Error message
+        message: String,
+    },
+
     /// Failed to enumerate the device manager's devices
     #[error("Failed to enumerate devices ({code}) {message}")]
     DeviceEnumerateDevicesFailed {

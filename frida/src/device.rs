@@ -10,6 +10,7 @@ use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::marker::PhantomData;
 
+use crate::application::Application;
 use crate::process::Process;
 use crate::session::{Session, SessionOptions};
 use crate::variant::Variant;
@@ -200,6 +201,90 @@ impl<'a> Device<'a> {
 
         unsafe { frida_sys::frida_unref(processes_ptr as _) };
         Ok(processes)
+    }
+
+    /// Returns all installed/running applications (with [`Scope::Minimal`] —
+    /// identifier + name + pid only).
+    pub fn enumerate_applications<'b>(&'a self) -> Vec<Application<'b>>
+    where
+        'a: 'b,
+    {
+        self.enumerate_applications_with_options(Scope::Minimal)
+    }
+
+    /// Returns the device's applications, controlling how much metadata each
+    /// one carries.
+    ///
+    /// With [`Scope::Full`] each returned [`Application`] populates
+    /// [`Application::get_parameters`].
+    pub fn enumerate_applications_with_options<'b>(&'a self, scope: Scope) -> Vec<Application<'b>>
+    where
+        'a: 'b,
+    {
+        self.try_enumerate_applications_with_options(scope)
+            .unwrap_or_default()
+    }
+
+    /// As [`Device::enumerate_applications_with_options`], but returns
+    /// frida-core's error instead of an empty list.
+    pub fn try_enumerate_applications_with_options<'b>(
+        &'a self,
+        scope: Scope,
+    ) -> Result<Vec<Application<'b>>>
+    where
+        'a: 'b,
+    {
+        let mut applications = Vec::new();
+        let mut error: *mut frida_sys::GError = std::ptr::null_mut();
+
+        let opts = unsafe { frida_sys::frida_application_query_options_new() };
+        if opts.is_null() {
+            return Err(Error::DeviceEnumerateApplicationsFailed {
+                code: 0,
+                message: "frida-core could not allocate the query options".to_string(),
+            });
+        }
+        unsafe {
+            frida_sys::frida_application_query_options_set_scope(
+                opts,
+                scope as frida_sys::FridaScope,
+            )
+        };
+
+        let applications_ptr = unsafe {
+            frida_sys::frida_device_enumerate_applications_sync(
+                self.device_ptr,
+                opts,
+                std::ptr::null_mut(),
+                &mut error,
+            )
+        };
+
+        unsafe { frida_sys::frida_unref(opts as _) };
+
+        if !error.is_null() {
+            if !applications_ptr.is_null() {
+                unsafe { frida_sys::frida_unref(applications_ptr as _) };
+            }
+            let (code, message) = unsafe { take_gerror(error) };
+            return Err(Error::DeviceEnumerateApplicationsFailed { code, message });
+        }
+
+        if applications_ptr.is_null() {
+            return Ok(applications);
+        }
+
+        let num_applications = unsafe { frida_sys::frida_application_list_size(applications_ptr) };
+        applications.reserve(num_applications as usize);
+
+        for i in 0..num_applications {
+            let application_ptr =
+                unsafe { frida_sys::frida_application_list_get(applications_ptr, i) };
+            applications.push(Application::from_raw(application_ptr));
+        }
+
+        unsafe { frida_sys::frida_unref(applications_ptr as _) };
+        Ok(applications)
     }
 
     /// Creates [`Session`] and attaches the device to the current PID.

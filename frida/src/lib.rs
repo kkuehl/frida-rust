@@ -37,6 +37,9 @@ pub use binary_metadata::*;
 mod compiler;
 pub use compiler::*;
 
+mod application;
+pub use application::*;
+
 mod device;
 pub use device::*;
 
