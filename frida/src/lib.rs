@@ -105,14 +105,13 @@ impl Frida {
             unsafe extern "C" fn trampoline<F: FnOnce() + Send + 'static>(
                 func: frida_sys::gpointer,
             ) -> frida_sys::gboolean {
-                unsafe {
-                    let func: &mut Option<F> = &mut *(func as *mut Option<F>);
-                    let func = func
-                        .take()
-                        .expect("schedule_on_main closure called multiple times");
-                    func();
-                    frida_sys::G_SOURCE_REMOVE as frida_sys::gboolean
+                let func: &mut Option<F> = unsafe { &mut *(func as *mut Option<F>) };
+                if let Some(func) = func.take() {
+                    // A panic must not unwind into GLib's C frames. The default
+                    // hook has reported it by the time it is caught here.
+                    let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(func));
                 }
+                frida_sys::G_SOURCE_REMOVE as frida_sys::gboolean
             }
             unsafe extern "C" fn destroy_closure<F: FnOnce() + Send + 'static>(
                 ptr: frida_sys::gpointer,

@@ -32,20 +32,22 @@ unsafe extern "C" fn call_on_message(
     json: *const c_char,
     user_data: *mut c_void,
 ) {
-    unsafe {
-        if json.is_null() || user_data.is_null() {
-            return;
-        }
+    if json.is_null() || user_data.is_null() {
+        return;
+    }
+    // A panic must not unwind into frida's C frames. The default hook has
+    // reported it by the time it is caught here.
+    let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| unsafe {
         let boxed = &mut *(user_data as *mut HandlerBox);
         let text = CStr::from_ptr(json).to_string_lossy();
         boxed.handler.on_message(&text);
-    }
+    }));
 }
 
 unsafe extern "C" fn destroy_handler(user_data: gpointer, _closure: *mut _GClosure) {
-    unsafe {
+    let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| unsafe {
         drop(Box::from_raw(user_data as *mut HandlerBox));
-    }
+    }));
 }
 
 /// Speaks the Language Server Protocol for a TypeScript or JavaScript project.
@@ -75,11 +77,7 @@ impl<'a> LanguageServer<'a> {
         };
 
         if !error.is_null() {
-            let message = unsafe { CStr::from_ptr((*error).message) }
-                .to_string_lossy()
-                .into_owned();
-            let code = unsafe { (*error).code };
-            unsafe { frida_sys::g_error_free(error) };
+            let (code, message) = unsafe { crate::take_gerror(error) };
             return Err(Error::LanguageServerFailed { code, message });
         }
         Ok(())
@@ -97,11 +95,7 @@ impl<'a> LanguageServer<'a> {
         unsafe { frida_sys::frida_language_server_post(self.ptr, cs.as_ptr(), &mut error) };
 
         if !error.is_null() {
-            let message = unsafe { CStr::from_ptr((*error).message) }
-                .to_string_lossy()
-                .into_owned();
-            let code = unsafe { (*error).code };
-            unsafe { frida_sys::g_error_free(error) };
+            let (code, message) = unsafe { crate::take_gerror(error) };
             return Err(Error::LanguageServerFailed { code, message });
         }
         Ok(())
