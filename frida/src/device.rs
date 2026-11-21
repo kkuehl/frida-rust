@@ -109,6 +109,8 @@ impl<'a> Device<'a> {
             map.insert(key.to_string_lossy().to_string(), val);
         }
 
+        // The table is the caller's (transfer full); its contents are copied out.
+        unsafe { frida_sys::g_hash_table_unref(ht) };
         Ok(map)
     }
 
@@ -316,6 +318,8 @@ impl<'a> Device<'a> {
         if error.is_null() {
             Ok(Session::from_raw(session))
         } else {
+            // `DeviceAttachError` has nowhere to carry the message.
+            unsafe { take_gerror(error) };
             Err(Error::DeviceAttachError)
         }
     }

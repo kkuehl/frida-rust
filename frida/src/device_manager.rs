@@ -104,6 +104,8 @@ impl<'a> DeviceManager<'a> {
         };
 
         if !error.is_null() {
+            // `DeviceLookupFailed` has nowhere to carry the message.
+            unsafe { crate::take_gerror(error) };
             return Err(Error::DeviceLookupFailed);
         }
 
@@ -126,6 +128,8 @@ impl<'a> DeviceManager<'a> {
         };
 
         if !error.is_null() {
+            // `DeviceLookupFailed` has nowhere to carry the message.
+            unsafe { crate::take_gerror(error) };
             return Err(Error::DeviceLookupFailed);
         }
 
@@ -247,6 +251,8 @@ impl<'a> DeviceManager<'a> {
         };
 
         if !error.is_null() {
+            // `DeviceLookupFailed` has nowhere to carry the message.
+            unsafe { crate::take_gerror(error) };
             return Err(Error::DeviceLookupFailed);
         }
 

@@ -391,6 +391,7 @@ impl<'a> Script<'a> {
         if error.is_null() {
             Ok(())
         } else {
+            unsafe { crate::take_gerror(error) };
             Err(Error::LoadingFailed)
         }
     }
@@ -403,6 +404,7 @@ impl<'a> Script<'a> {
         if error.is_null() {
             Ok(())
         } else {
+            unsafe { crate::take_gerror(error) };
             Err(Error::UnloadingFailed)
         }
     }

@@ -183,6 +183,8 @@ impl<'a> Session<'a> {
                 if error.is_null() {
                     Ok(Script::from_raw(script))
                 } else {
+                    // `ScriptCreationError` has nowhere to carry the message.
+                    unsafe { crate::take_gerror(error) };
                     Err(Error::ScriptCreationError)
                 }
             }
@@ -221,6 +223,7 @@ impl<'a> Session<'a> {
         if error.is_null() {
             Ok(Script::from_raw(script))
         } else {
+            unsafe { crate::take_gerror(error) };
             Err(Error::ScriptCreationError)
         }
     }
@@ -240,6 +243,7 @@ impl<'a> Session<'a> {
                 &mut error,
             );
             if !error.is_null() {
+                crate::take_gerror(error);
                 return Err(Error::ScriptCreationError);
             }
             let mut len: gsize = 0;
@@ -264,6 +268,7 @@ impl<'a> Session<'a> {
         if error.is_null() {
             Ok(())
         } else {
+            unsafe { crate::take_gerror(error) };
             Err(Error::SessionDetachError)
         }
     }
