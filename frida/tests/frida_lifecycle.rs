@@ -31,8 +31,35 @@ fn version_matches_devkit_and_is_non_empty() {
         parts.len() >= 3 && parts.iter().all(|p| p.chars().all(|c| c.is_ascii_digit())),
         "Frida::version() should look like MAJOR.MINOR.PATCH, got {version:?}"
     );
-    // We bump the crate to 17.18.0 in FRIDA_VERSION; the devkit should follow.
-    assert_eq!(parts[0], "17", "unexpected major version: {version:?}");
+    // The devkit must be the release FRIDA_VERSION names. A build that downloads it asks for
+    // that release by name, and one placed by hand has to be the same one: the bindings are
+    // written against that release's API.
+    let pinned = include_str!("../../FRIDA_VERSION").trim();
+    assert_eq!(
+        version, pinned,
+        "the linked devkit is Frida {version}, but FRIDA_VERSION says {pinned}"
+    );
+    // The header the bindings were generated from came with the same devkit.
+    let header = std::ffi::CStr::from_bytes_with_nul(frida_sys::FRIDA_VERSION)
+        .expect("the header's version is a C string")
+        .to_str()
+        .expect("the header's version is ASCII");
+    assert_eq!(
+        header, pinned,
+        "the devkit's header is Frida {header}, but FRIDA_VERSION says {pinned}"
+    );
+}
+
+#[test]
+fn version_files_agree() {
+    // The Gum devkit carries no version of its own to check, so this is what keeps it the same
+    // release as the core devkit: each sys crate downloads the one its own file names.
+    let root = include_str!("../../FRIDA_VERSION").trim();
+    assert_eq!(include_str!("../../frida-sys/FRIDA_VERSION").trim(), root);
+    assert_eq!(
+        include_str!("../../frida-gum-sys/FRIDA_VERSION").trim(),
+        root
+    );
 }
 
 #[test]
