@@ -5,11 +5,16 @@
  */
 
 use frida_sys::{
-    _FridaScript, _GBytes, FridaScriptOptions, g_bytes_get_data, g_bytes_new, g_bytes_unref, gsize,
+    _FridaScript, _GBytes, _GClosure, FridaScriptOptions, g_bytes_get_data, g_bytes_new,
+    g_bytes_unref, gpointer, gsize, gulong,
 };
 use serde::Deserialize;
-use serde_json::Value;
-use std::sync::mpsc::{Receiver, Sender, channel};
+use serde_json::{Value, json};
+use std::collections::HashMap;
+use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::mpsc::{Sender, channel};
+use std::sync::{Arc, Mutex, MutexGuard};
 use std::{cell::RefCell, marker::PhantomData, rc::Rc};
 use std::{
     ffi::{CStr, CString, c_char, c_void},
@@ -81,126 +86,299 @@ pub enum MessageLogLevel {
     Error,
 }
 
-// PATCH (frida-rust#189): user_data is `*mut CallbackHandler` (set by
-// handle_message). The pre-patch code cast it to `*mut I` and called
-// I::on_message on garbage memory; that only worked when I was a ZST.
-// Route through cb.script_handler (where handle_message actually stored
-// the boxed trait object) instead. The `I` type parameter is now unused
-// but kept so monomorphization still produces a distinct fn pointer per
-// handler type, matching the original ABI.
-unsafe extern "C" fn call_on_message<I: ScriptHandler>(
-    _script_ptr: *mut _FridaScript,
-    message: *const i8,
-    data: *const frida_sys::_GBytes,
-    user_data: *mut c_void,
-) {
-    unsafe {
-        let _ = std::marker::PhantomData::<I>;
-
-        let c_msg = CStr::from_ptr(message as *const c_char)
-            .to_str()
-            .unwrap_or_default();
-
-        let formatted_msg: Message = serde_json::from_str(c_msg).unwrap_or_else(|err| {
-            Message::Other(serde_json::json!({
-                "error": err.to_string(),
-                "data": c_msg
-            }))
-        });
-
-        let callback_handler: *mut CallbackHandler = user_data as _;
-        let cb = match callback_handler.as_mut() {
-            Some(cb) => cb,
-            None => return,
-        };
-
-        match formatted_msg {
-            Message::Send(ref msg)
-                if msg.payload.get(0).and_then(|v| v.as_str()) == Some("frida:rpc") =>
-            {
-                on_message(cb, formatted_msg);
-            }
-            _ => {
-                // Retrieve extra message data, if any.
-                let data_vec = if data.is_null() {
-                    None
-                } else {
-                    let mut raw_data_size: gsize = 0;
-                    let raw_data: *const u8 = g_bytes_get_data(
-                        // Cast to mut should be safe, as this function doesn't modify the data.
-                        data as *mut _GBytes,
-                        std::ptr::from_mut(&mut raw_data_size),
-                    ) as *const u8;
-                    if raw_data_size == 0 || raw_data.is_null() {
-                        None
-                    } else {
-                        // Copy to a vector to avoid potential lifetime issues.
-                        Some(
-                            std::slice::from_raw_parts(raw_data, raw_data_size.try_into().unwrap())
-                                .to_vec(),
-                        )
-                    }
-                };
-
-                if let Some(handler) = cb.script_handler.as_deref_mut() {
-                    handler.on_message(formatted_msg, data_vec);
-                }
-            }
-        }
-    } // end unsafe
-}
-
-fn on_message(cb_handler: &mut CallbackHandler, message: Message) {
-    let (tx, _) = &cb_handler.channel;
-    let _ = tx.send((message, None));
-}
-
 /// Represents a script signal handler.
 pub trait ScriptHandler {
     /// Handler called when a message is shared from JavaScript to Rust.
     fn on_message(&mut self, message: Message, data: Option<Vec<u8>>);
 }
 
+/// The caller's handler, as the inbox keeps it.
+///
+/// It is called on frida's thread, and may be dropped there, but
+/// [`Script::handle_message`] does not require it to be `Send`. Everything
+/// the crate itself shares between the threads is behind a lock; what the
+/// handler holds is the caller's to keep safe to use from frida's thread.
+struct UserHandler(Box<dyn ScriptHandler>);
+
+// SAFETY: not proven; see `UserHandler`. The inbox only ever reaches the
+// handler through its mutex, so the crate makes no unsynchronised access.
+unsafe impl Send for UserHandler {}
+
+/// What frida's thread and the caller's share about one script: the
+/// caller's handler, and the RPC calls waiting for a reply.
+///
+/// The signal connections own one reference each, given back when GLib
+/// destroys the closure, so the inbox outlives every callback.
+struct Inbox {
+    handler: Mutex<Option<UserHandler>>,
+    rpc: Mutex<RpcState>,
+    next_id: AtomicUsize,
+}
+
+#[derive(Default)]
+struct RpcState {
+    /// The calls waiting, by request id.
+    waiting: HashMap<usize, Sender<Value>>,
+    /// Set once the script is destroyed: no reply can come after that.
+    closed: bool,
+}
+
+impl Inbox {
+    fn new() -> Self {
+        Self {
+            handler: Mutex::new(None),
+            rpc: Mutex::new(RpcState::default()),
+            next_id: AtomicUsize::new(1),
+        }
+    }
+
+    fn rpc(&self) -> MutexGuard<'_, RpcState> {
+        self.rpc
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    fn set_handler(&self, handler: Box<dyn ScriptHandler>) {
+        let old = {
+            let mut slot = self
+                .handler
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            slot.replace(UserHandler(handler))
+        };
+        // The old handler is dropped outside the lock.
+        drop(old);
+    }
+
+    /// Hands an RPC reply to the call waiting for it. A reply no call is
+    /// waiting for is dropped.
+    fn deliver_reply(&self, payload: Value) {
+        let Some(id) = payload.get(1).and_then(Value::as_u64) else {
+            return;
+        };
+        let waiter = self.rpc().waiting.remove(&(id as usize));
+        if let Some(waiter) = waiter {
+            let _ = waiter.send(payload);
+        }
+    }
+
+    fn deliver(&self, message: Message, data: Option<Vec<u8>>) {
+        let mut slot = self
+            .handler
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if let Some(UserHandler(handler)) = slot.as_mut() {
+            // A panic must not unwind into frida's C frames. The default hook
+            // has reported it by the time it is caught here.
+            let _ = catch_unwind(AssertUnwindSafe(|| handler.on_message(message, data)));
+        }
+    }
+
+    /// No reply can come any more: wakes every waiting call with an error.
+    fn close(&self) {
+        let waiting = {
+            let mut rpc = self.rpc();
+            rpc.closed = true;
+            std::mem::take(&mut rpc.waiting)
+        };
+        drop(waiting);
+    }
+
+    /// Posts an RPC request and waits for its reply, or for the script to be
+    /// destroyed.
+    fn request(&self, script: &ScriptRef, operation: &str, params: Vec<Value>) -> Result<Value> {
+        let id = self.next_id.fetch_add(1, Ordering::Relaxed);
+        let mut request = vec![json!("frida:rpc"), json!(id), json!(operation)];
+        request.extend(params);
+        let request =
+            CString::new(Value::Array(request).to_string()).map_err(|_| Error::CStringFailed)?;
+
+        let (tx, rx) = channel();
+        {
+            let mut rpc = self.rpc();
+            if rpc.closed {
+                return Err(destroyed());
+            }
+            rpc.waiting.insert(id, tx);
+        }
+        unsafe { frida_sys::frida_script_post(script.0, request.as_ptr(), null_mut()) };
+
+        // Every sender is dropped when the script is destroyed, which ends
+        // the wait.
+        rx.recv().map_err(|_| destroyed())
+    }
+}
+
+fn destroyed() -> Error {
+    Error::RpcJsError {
+        message: "Script is destroyed".to_string(),
+    }
+}
+
+/// The reason an RPC reply gives for failing, or a generic one.
+fn rpc_failure(payload: &Value) -> Error {
+    let message = payload
+        .get(3)
+        .and_then(Value::as_str)
+        .unwrap_or("RPC call failed. Result is not ok and no error message provided.")
+        .to_string();
+    Error::RpcJsError { message }
+}
+
+unsafe fn inbox_from<'i>(user_data: *mut c_void) -> &'i Inbox {
+    // SAFETY: `user_data` is the reference the connection owns; GLib calls
+    // the destroy notify that gives it back only after the last callback.
+    unsafe { &*(user_data as *const Inbox) }
+}
+
+unsafe extern "C" fn on_script_message(
+    _script: *mut _FridaScript,
+    message: *const c_char,
+    data: *mut _GBytes,
+    user_data: *mut c_void,
+) {
+    let _ = catch_unwind(AssertUnwindSafe(|| unsafe {
+        if message.is_null() {
+            return;
+        }
+        let inbox = inbox_from(user_data);
+        let text = CStr::from_ptr(message).to_string_lossy();
+
+        let formatted_msg: Message = serde_json::from_str(&text).unwrap_or_else(|err| {
+            Message::Other(json!({
+                "error": err.to_string(),
+                "data": text,
+            }))
+        });
+
+        if let Message::Send(msg) = &formatted_msg
+            && msg.payload.get(0).and_then(Value::as_str) == Some("frida:rpc")
+        {
+            let Message::Send(msg) = formatted_msg else {
+                unreachable!()
+            };
+            inbox.deliver_reply(msg.payload);
+            return;
+        }
+
+        // Retrieve extra message data, if any.
+        let data_vec = if data.is_null() {
+            None
+        } else {
+            let mut raw_data_size: gsize = 0;
+            let raw_data = g_bytes_get_data(data, &mut raw_data_size) as *const u8;
+            if raw_data_size == 0 || raw_data.is_null() {
+                None
+            } else {
+                // Copy to a vector to avoid potential lifetime issues.
+                Some(std::slice::from_raw_parts(raw_data, raw_data_size as usize).to_vec())
+            }
+        };
+
+        inbox.deliver(formatted_msg, data_vec);
+    }));
+}
+
+unsafe extern "C" fn on_script_destroyed(_script: *mut _FridaScript, user_data: *mut c_void) {
+    let _ = catch_unwind(AssertUnwindSafe(|| {
+        unsafe { inbox_from(user_data) }.close()
+    }));
+}
+
+unsafe extern "C" fn release_inbox(user_data: gpointer, _closure: *mut _GClosure) {
+    let _ = catch_unwind(AssertUnwindSafe(|| unsafe {
+        drop(Arc::from_raw(user_data as *const Inbox));
+    }));
+}
+
+/// A reference to the `FridaScript`, given back when the last holder drops.
+struct ScriptRef(*mut _FridaScript);
+
+impl Drop for ScriptRef {
+    fn drop(&mut self) {
+        unsafe { frida_sys::frida_unref(self.0 as _) }
+    }
+}
+
+/// Keeps [`Script`] and [`Exports`] neither `Send`, `Sync` nor unwind-safe,
+/// as they were.
+type NotThreadSafe = PhantomData<Rc<RefCell<()>>>;
+
 /// Represents a Frida script.
 pub struct Script<'a> {
-    script_ptr: *mut _FridaScript,
-    rpc_id_counter: Rc<RefCell<usize>>,
-    callback_handler: Rc<RefCell<CallbackHandler>>,
+    script: Rc<ScriptRef>,
+    inbox: Arc<Inbox>,
+    signal_ids: [gulong; 2],
     ///Exports of the script.
     pub exports: Exports<'a>,
     phantom: PhantomData<&'a _FridaScript>,
+    not_thread_safe: NotThreadSafe,
 }
 
 /// This represents the exports of the script.
 pub struct Exports<'a> {
-    script_ptr: *mut _FridaScript,
-    rpc_id_counter: Rc<RefCell<usize>>,
-    callback_handler: Rc<RefCell<CallbackHandler>>,
+    script: Rc<ScriptRef>,
+    inbox: Arc<Inbox>,
     phantom: PhantomData<&'a _FridaScript>,
+    not_thread_safe: NotThreadSafe,
 }
 
-impl Exports<'_> {
-    fn inc_id(&mut self) -> usize {
-        let mut counter_borrow = self.rpc_id_counter.borrow_mut();
-        *counter_borrow += 1;
-        *counter_borrow
+unsafe fn connect(
+    script: *mut _FridaScript,
+    signal: &CStr,
+    callback: *const c_void,
+    inbox: &Arc<Inbox>,
+) -> gulong {
+    unsafe {
+        let callback = std::mem::transmute::<*const c_void, unsafe extern "C" fn()>(callback);
+        frida_sys::g_signal_connect_data(
+            script as _,
+            signal.as_ptr(),
+            Some(callback),
+            Arc::into_raw(inbox.clone()) as gpointer,
+            Some(release_inbox),
+            0,
+        )
     }
 }
 
 impl<'a> Script<'a> {
     pub(crate) fn from_raw(script_ptr: *mut _FridaScript) -> Script<'a> {
-        let rpc_counter = Rc::new(RefCell::new(0));
-        let handler = Rc::new(RefCell::new(CallbackHandler::new()));
+        let script = Rc::new(ScriptRef(script_ptr));
+        let inbox = Arc::new(Inbox::new());
+        // Connected once, for the life of this `Script`: RPC replies arrive
+        // whether or not a handler is ever installed, and a destroyed script
+        // ends the calls waiting on it.
+        let signal_ids = unsafe {
+            [
+                connect(
+                    script_ptr,
+                    c"message",
+                    on_script_message as *const c_void,
+                    &inbox,
+                ),
+                connect(
+                    script_ptr,
+                    c"destroyed",
+                    on_script_destroyed as *const c_void,
+                    &inbox,
+                ),
+            ]
+        };
+        if unsafe { frida_sys::frida_script_is_destroyed(script_ptr) } != 0 {
+            inbox.close();
+        }
         Script {
-            script_ptr,
+            script: script.clone(),
+            inbox: inbox.clone(),
+            signal_ids,
             phantom: PhantomData,
-            rpc_id_counter: rpc_counter.clone(),
-            callback_handler: handler.clone(),
+            not_thread_safe: PhantomData,
             exports: Exports {
-                script_ptr,
+                script,
+                inbox,
                 phantom: PhantomData,
-                rpc_id_counter: rpc_counter,
-                callback_handler: handler,
+                not_thread_safe: PhantomData,
             },
         }
     }
@@ -208,7 +386,7 @@ impl<'a> Script<'a> {
     /// Loads the script into the process.
     pub fn load(&self) -> Result<()> {
         let mut error: *mut frida_sys::GError = std::ptr::null_mut();
-        unsafe { frida_sys::frida_script_load_sync(self.script_ptr, null_mut(), &mut error) };
+        unsafe { frida_sys::frida_script_load_sync(self.script.0, null_mut(), &mut error) };
 
         if error.is_null() {
             Ok(())
@@ -220,7 +398,7 @@ impl<'a> Script<'a> {
     /// Unloads the script from the process.
     pub fn unload(&self) -> Result<()> {
         let mut error: *mut frida_sys::GError = std::ptr::null_mut();
-        unsafe { frida_sys::frida_script_unload_sync(self.script_ptr, null_mut(), &mut error) };
+        unsafe { frida_sys::frida_script_unload_sync(self.script.0, null_mut(), &mut error) };
 
         if error.is_null() {
             Ok(())
@@ -230,6 +408,12 @@ impl<'a> Script<'a> {
     }
 
     /// Handles the `message` signal for the script and wraps into [`ScriptHandler`].
+    ///
+    /// A later call replaces the handler; each message reaches one handler,
+    /// once. The handler is called on frida's thread, so whatever it shares
+    /// with other threads must be safe to use from there. A panic in it is
+    /// caught and reported, and the handler stays installed. It is dropped
+    /// when it is replaced or when the [`Script`] is dropped.
     ///
     /// # Example
     ///
@@ -246,27 +430,7 @@ impl<'a> Script<'a> {
     /// }
     /// ```
     pub fn handle_message<I: ScriptHandler + 'static>(&mut self, handler: I) -> Result<()> {
-        let message = CString::new("message").map_err(|_| Error::CStringFailed)?;
-        let mut borrowed_callback_handler = self.callback_handler.borrow_mut();
-        (*borrowed_callback_handler).add_handler(handler);
-        let user_data =
-            (&(*borrowed_callback_handler) as *const _ as *mut CallbackHandler) as *mut c_void;
-        unsafe {
-            let callback = Some(std::mem::transmute::<
-                *mut std::ffi::c_void,
-                unsafe extern "C" fn(),
-            >(call_on_message::<I> as *mut c_void));
-
-            frida_sys::g_signal_connect_data(
-                self.script_ptr as _,
-                message.as_ptr(),
-                callback,
-                user_data,
-                None,
-                0,
-            )
-        };
-
+        self.inbox.set_handler(Box::new(handler));
         Ok(())
     }
 
@@ -282,120 +446,73 @@ impl<'a> Script<'a> {
             } else {
                 std::ptr::null_mut()
             };
-            frida_sys::frida_script_post(self.script_ptr as _, message.as_ptr() as _, g_data);
+            frida_sys::frida_script_post(self.script.0, message.as_ptr() as _, g_data);
             g_bytes_unref(g_data);
         }
 
         Ok(())
     }
 
-    fn inc_id(&mut self) -> usize {
-        let mut counter_borrow = self.rpc_id_counter.borrow_mut();
-        *counter_borrow += 1;
-        *counter_borrow
-    }
-
     /// List all the exported attributes from the script's rpc
+    ///
+    /// Fails if the script answers with an error, or is destroyed before it
+    /// answers.
     pub fn list_exports(&mut self) -> Result<Vec<String>> {
-        let json_req = {
-            let name = "frida:rpc".into();
-            let id = self.inc_id().into();
-            let rpc_type = "list".into();
-            let rpc_function = Value::Null;
-            let args = Value::Null;
-
-            let rpc_query: [Value; 5] = [name, id, rpc_type, rpc_function, args];
-
-            serde_json::to_string(&rpc_query).unwrap()
-        };
-
-        self.post(&json_req, None).unwrap();
-        let borrowed_callback_handler = self.callback_handler.borrow();
-        let (_, rx) = &borrowed_callback_handler.channel;
-        let (rpc_result, _) = rx.recv().unwrap();
-
-        let func_list: Vec<String> = match rpc_result {
-            Message::Send(r) => {
-                let tmp_list: Vec<String> = r
-                    .payload
-                    .get(3)
-                    .and_then(|v| v.as_array())
-                    .map(|arr| {
-                        arr.iter()
-                            .map(|i| i.as_str().unwrap_or("").to_string())
-                            .collect::<Vec<String>>()
-                    })
-                    .unwrap_or_default();
-
-                tmp_list
-            }
-            _ => Vec::new(),
-        };
-
-        Ok(func_list)
+        let payload = self.inbox.request(&self.script, "list", vec![])?;
+        if payload.get(2).and_then(Value::as_str) != Some("ok") {
+            return Err(rpc_failure(&payload));
+        }
+        let names = payload
+            .get(3)
+            .and_then(Value::as_array)
+            .ok_or(Error::RpcUnexpectedMessage)?;
+        Ok(names
+            .iter()
+            .map(|name| name.as_str().unwrap_or("").to_string())
+            .collect())
     }
 }
 
 impl Exports<'_> {
     /// Run exported functions from a Frida script.
+    ///
+    /// `args` is the list of arguments, as a JSON array; `None` is none.
+    /// Fails if the function throws, or if the script is destroyed before it
+    /// answers. A call to a script that is not loaded waits until it is.
     pub fn call(&mut self, function_name: &str, args: Option<Value>) -> Result<Option<Value>> {
-        let json_req: String = {
-            let name = "frida:rpc";
-            let id = self.inc_id();
-            let rpc_type = "call";
+        let args = args.unwrap_or_else(|| Value::Array(vec![]));
+        let payload = self
+            .inbox
+            .request(&self.script, "call", vec![json!(function_name), args])?;
 
-            let args: String = match args {
-                Some(a) => serde_json::to_string(&a).unwrap(),
-                None => "[]".into(),
-            };
-
-            format!("[\"{name}\", {id}, \"{rpc_type}\", \"{function_name}\", {args}]",)
-        };
-
-        let message = CString::new(json_req.as_str()).map_err(|_| Error::CStringFailed)?;
-
-        unsafe {
-            let g_data = std::ptr::null_mut();
-            frida_sys::frida_script_post(self.script_ptr as _, message.as_ptr() as _, g_data);
-            g_bytes_unref(g_data);
+        if payload.get(2).and_then(Value::as_str) != Some("ok") {
+            return Err(rpc_failure(&payload));
         }
-
-        let borrowed_callback_handler = self.callback_handler.borrow();
-        let (_, rx) = &borrowed_callback_handler.channel;
-        let (rpc_result, _) = rx.recv().unwrap();
-
-        match rpc_result {
-            Message::Send(r) => {
-                if r.payload.get(2).and_then(|v| v.as_str()) == Some("ok") {
-                    let returns = match r.payload.get(3) {
-                        Some(v) => v.clone(),
-                        None => return Err(Error::RpcUnexpectedMessage),
-                    };
-
-                    match returns {
-                        Value::Null => Ok(None),
-                        _ => Ok(Some(returns)),
-                    }
-                } else {
-                    let err_msg = r
-                        .payload
-                        .get(3)
-                        .and_then(|v| v.as_str())
-                        .unwrap_or(
-                            "RPC call failed. Result is not ok and no error message provided.",
-                        )
-                        .to_string();
-                    Err(Error::RpcJsError { message: err_msg })
-                }
-            }
-            _ => Err(Error::RpcUnexpectedMessage),
+        match payload.get(3) {
+            Some(Value::Null) => Ok(None),
+            Some(returns) => Ok(Some(returns.clone())),
+            None => Err(Error::RpcUnexpectedMessage),
         }
     }
 }
 
 impl Drop for Script<'_> {
     fn drop(&mut self) {
-        unsafe { frida_sys::frida_unref(self.script_ptr as _) }
+        // The handler stops here: no message reaches it after the `Script`
+        // is gone, though the session may keep the script itself running.
+        // GLib drops the connections' references to the inbox once no
+        // callback is running.
+        for id in self.signal_ids {
+            unsafe { frida_sys::g_signal_handler_disconnect(self.script.0 as _, id) };
+        }
+        self.inbox.close();
+        let handler = self
+            .inbox
+            .handler
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .take();
+        drop(handler);
     }
 }
 
@@ -467,25 +584,5 @@ impl Drop for ScriptOption {
                 &mut self.ptr as *mut *mut frida_sys::_FridaScriptOptions as _,
             )
         }
-    }
-}
-
-type MsgSender = Sender<(Message, Option<Vec<u8>>)>;
-type MsgReceiver = Receiver<(Message, Option<Vec<u8>>)>;
-struct CallbackHandler {
-    channel: (MsgSender, MsgReceiver),
-    script_handler: Option<Box<dyn ScriptHandler>>,
-}
-
-impl CallbackHandler {
-    fn new() -> Self {
-        Self {
-            channel: channel(),
-            script_handler: None,
-        }
-    }
-
-    fn add_handler<I: ScriptHandler + 'static>(&mut self, handler: I) {
-        self.script_handler = Some(Box::from(handler));
     }
 }

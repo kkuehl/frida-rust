@@ -28,6 +28,7 @@ pub use crate::{
     _frida_g_hash_table_size as g_hash_table_size, _frida_g_hash_table_unref as g_hash_table_unref,
     _frida_g_idle_source_new as g_idle_source_new, _frida_g_object_ref as g_object_ref,
     _frida_g_signal_connect_data as g_signal_connect_data,
+    _frida_g_signal_handler_disconnect as g_signal_handler_disconnect,
     _frida_g_source_attach as g_source_attach,
     _frida_g_source_set_callback as g_source_set_callback, _frida_g_source_unref as g_source_unref,
     _frida_g_str_equal as g_str_equal, _frida_g_str_hash as g_str_hash,
