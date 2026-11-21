@@ -16,14 +16,14 @@ use alloc::{string::String, string::ToString, vec::Vec};
 use cstr_core::CString;
 use frida_gum_sys::GumThreadFlags_GUM_THREAD_FLAGS_ALL;
 
-#[cfg(any(target_os = "linux", target_os = "freebsd"))]
+#[cfg(any(target_os = "linux", target_os = "android", target_os = "freebsd"))]
 unsafe extern "C" {
     pub fn _frida_g_get_home_dir() -> *const c_char;
     pub fn _frida_g_get_current_dir() -> *const c_char;
     pub fn _frida_g_get_tmp_dir() -> *const c_char;
 }
 
-#[cfg(not(any(target_os = "linux", target_os = "freebsd")))]
+#[cfg(not(any(target_os = "linux", target_os = "android", target_os = "freebsd")))]
 unsafe extern "C" {
     pub fn g_get_home_dir() -> *const c_char;
     pub fn g_get_current_dir() -> *const c_char;
@@ -256,9 +256,9 @@ impl<'a> Process<'a> {
     /// Returns a string specifying the filesystem path to the current working directory
     pub fn current_dir(&self) -> String {
         unsafe {
-            #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+            #[cfg(any(target_os = "linux", target_os = "android", target_os = "freebsd"))]
             let dir = _frida_g_get_current_dir();
-            #[cfg(not(any(target_os = "linux", target_os = "freebsd")))]
+            #[cfg(not(any(target_os = "linux", target_os = "android", target_os = "freebsd")))]
             let dir = g_get_current_dir();
 
             let owned = CStr::from_ptr(dir).to_string_lossy().to_string();
@@ -272,9 +272,9 @@ impl<'a> Process<'a> {
     /// Returns a string specifying the filesystem path to the directory to use for temporary files
     pub fn tmp_dir(&self) -> String {
         unsafe {
-            #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+            #[cfg(any(target_os = "linux", target_os = "android", target_os = "freebsd"))]
             let dir = _frida_g_get_tmp_dir();
-            #[cfg(not(any(target_os = "linux", target_os = "freebsd")))]
+            #[cfg(not(any(target_os = "linux", target_os = "android", target_os = "freebsd")))]
             let dir = g_get_tmp_dir();
 
             CStr::from_ptr(dir).to_string_lossy().to_string()
@@ -284,9 +284,9 @@ impl<'a> Process<'a> {
     /// Returns a string specifying the filesystem path to the current user’s home directory
     pub fn home_dir(&self) -> String {
         unsafe {
-            #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+            #[cfg(any(target_os = "linux", target_os = "android", target_os = "freebsd"))]
             let dir = _frida_g_get_home_dir();
-            #[cfg(not(any(target_os = "linux", target_os = "freebsd")))]
+            #[cfg(not(any(target_os = "linux", target_os = "android", target_os = "freebsd")))]
             let dir = g_get_home_dir();
 
             CStr::from_ptr(dir).to_string_lossy().to_string()
