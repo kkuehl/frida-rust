@@ -129,3 +129,29 @@ fn get_device_by_id_returns_error_for_bogus_id() {
         "get_device_by_id must fail for a nonexistent id"
     );
 }
+
+#[test]
+fn a_failed_spawn_reports_fridas_code_and_message() {
+    // The message is frida-core's, allocated by GLib. It used to be handed to Rust's allocator
+    // to free, and the error it came in was leaked.
+    let _serial = serial_guard();
+    let dm = DeviceManager::obtain(&FRIDA);
+    let mut dev = local(&dm);
+
+    // Repeated, so that a message freed by the wrong allocator has every chance to show.
+    for _ in 0..50 {
+        let error = dev
+            .spawn(
+                "/nonexistent/frida-rust-test-program",
+                &frida::SpawnOptions::new(),
+            )
+            .expect_err("there is no such program to spawn");
+
+        match error {
+            frida::Error::SpawnFailed { message, .. } => {
+                assert!(!message.is_empty(), "frida-core says why the spawn failed");
+            }
+            other => panic!("expected SpawnFailed, got {other}"),
+        }
+    }
+}

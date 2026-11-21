@@ -173,10 +173,7 @@ impl Inject for Injector<'_> {
             )
         };
         if !error.is_null() {
-            let message = unsafe { CString::from_raw((*error).message) }
-                .into_string()
-                .map_err(|_| Error::CStringFailed)?;
-            let code = unsafe { (*error).code };
+            let (code, message) = unsafe { crate::take_gerror(error) };
 
             return Err(Error::InjectFailed { code, message });
         }
@@ -216,10 +213,7 @@ impl Inject for Injector<'_> {
         };
 
         if !error.is_null() {
-            let message = unsafe { CString::from_raw((*error).message) }
-                .into_string()
-                .map_err(|_| Error::CStringFailed)?;
-            let code = unsafe { (*error).code };
+            let (code, message) = unsafe { crate::take_gerror(error) };
 
             return Err(Error::InjectFailed { code, message });
         }
@@ -271,10 +265,7 @@ impl Inject for Device<'_> {
             )
         };
         if !error.is_null() {
-            let message = unsafe { CString::from_raw((*error).message) }
-                .into_string()
-                .map_err(|_| Error::CStringFailed)?;
-            let code = unsafe { (*error).code };
+            let (code, message) = unsafe { crate::take_gerror(error) };
 
             return Err(Error::InjectFailed { code, message });
         }
@@ -314,10 +305,7 @@ impl Inject for Device<'_> {
         };
 
         if !error.is_null() {
-            let message = unsafe { CString::from_raw((*error).message) }
-                .into_string()
-                .map_err(|_| Error::CStringFailed)?;
-            let code = unsafe { (*error).code };
+            let (code, message) = unsafe { crate::take_gerror(error) };
 
             return Err(Error::InjectFailed { code, message });
         }

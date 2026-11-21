@@ -88,10 +88,7 @@ impl<'a> Device<'a> {
         };
 
         if !error.is_null() {
-            let message = unsafe { CString::from_raw((*error).message) }
-                .into_string()
-                .map_err(|_| Error::CStringFailed)?;
-            let code = unsafe { (*error).code };
+            let (code, message) = unsafe { crate::take_gerror(error) };
 
             return Err(Error::DeviceQuerySystemParametersFailed { code, message });
         }
@@ -343,10 +340,7 @@ impl<'a> Device<'a> {
         };
 
         if !error.is_null() {
-            let message = unsafe { CString::from_raw((*error).message) }
-                .into_string()
-                .map_err(|_| Error::CStringFailed)?;
-            let code = unsafe { (*error).code };
+            let (code, message) = unsafe { crate::take_gerror(error) };
 
             return Err(Error::SpawnFailed { code, message });
         }
@@ -367,10 +361,7 @@ impl<'a> Device<'a> {
         };
 
         if !error.is_null() {
-            let message = unsafe { CString::from_raw((*error).message) }
-                .into_string()
-                .map_err(|_| Error::CStringFailed)?;
-            let code = unsafe { (*error).code };
+            let (code, message) = unsafe { crate::take_gerror(error) };
 
             return Err(Error::ResumeFailed { code, message });
         }
@@ -391,10 +382,7 @@ impl<'a> Device<'a> {
         };
 
         if !error.is_null() {
-            let message = unsafe { CString::from_raw((*error).message) }
-                .into_string()
-                .map_err(|_| Error::CStringFailed)?;
-            let code = unsafe { (*error).code };
+            let (code, message) = unsafe { crate::take_gerror(error) };
 
             return Err(Error::KillFailed { code, message });
         }
