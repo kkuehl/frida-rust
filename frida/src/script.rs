@@ -94,15 +94,9 @@ pub trait ScriptHandler {
 
 /// The caller's handler, as the inbox keeps it.
 ///
-/// It is called on frida's thread, and may be dropped there, but
-/// [`Script::handle_message`] does not require it to be `Send`. Everything
-/// the crate itself shares between the threads is behind a lock; what the
-/// handler holds is the caller's to keep safe to use from frida's thread.
-struct UserHandler(Box<dyn ScriptHandler>);
-
-// SAFETY: not proven; see `UserHandler`. The inbox only ever reaches the
-// handler through its mutex, so the crate makes no unsynchronised access.
-unsafe impl Send for UserHandler {}
+/// It is called on frida's thread, which is why [`Script::handle_message`]
+/// requires it to be `Send`.
+struct UserHandler(Box<dyn ScriptHandler + Send>);
 
 /// What frida's thread and the caller's share about one script: the
 /// caller's handler, and the RPC calls waiting for a reply.
@@ -138,7 +132,7 @@ impl Inbox {
             .unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 
-    fn set_handler(&self, handler: Box<dyn ScriptHandler>) {
+    fn set_handler(&self, handler: Box<dyn ScriptHandler + Send>) {
         let old = {
             let mut slot = self
                 .handler
@@ -412,10 +406,9 @@ impl<'a> Script<'a> {
     /// Handles the `message` signal for the script and wraps into [`ScriptHandler`].
     ///
     /// A later call replaces the handler; each message reaches one handler,
-    /// once. The handler is called on frida's thread, so whatever it shares
-    /// with other threads must be safe to use from there. A panic in it is
-    /// caught and reported, and the handler stays installed. It is dropped
-    /// when it is replaced or when the [`Script`] is dropped.
+    /// once. The handler is called on frida's thread, so it has to be `Send`.
+    /// A panic in it is caught and reported, and the handler stays installed.
+    /// It is dropped when it is replaced or when the [`Script`] is dropped.
     ///
     /// # Example
     ///
@@ -431,7 +424,23 @@ impl<'a> Script<'a> {
     ///     }
     /// }
     /// ```
-    pub fn handle_message<I: ScriptHandler + 'static>(&mut self, handler: I) -> Result<()> {
+    ///
+    /// A handler that cannot be sent to another thread is refused:
+    ///
+    /// ```compile_fail,E0277
+    /// use std::rc::Rc;
+    ///
+    /// struct Handler(Rc<()>);
+    ///
+    /// impl frida::ScriptHandler for Handler {
+    ///     fn on_message(&mut self, _message: frida::Message, _data: Option<Vec<u8>>) {}
+    /// }
+    ///
+    /// fn install(script: &mut frida::Script<'_>) {
+    ///     let _ = script.handle_message(Handler(Rc::new(())));
+    /// }
+    /// ```
+    pub fn handle_message<I: ScriptHandler + Send + 'static>(&mut self, handler: I) -> Result<()> {
         self.inbox.set_handler(Box::new(handler));
         Ok(())
     }

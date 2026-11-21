@@ -24,7 +24,7 @@ pub trait LanguageServerHandler {
 }
 
 struct HandlerBox {
-    handler: Box<dyn LanguageServerHandler>,
+    handler: Box<dyn LanguageServerHandler + Send>,
 }
 
 unsafe extern "C" fn call_on_message(
@@ -105,8 +105,25 @@ impl<'a> LanguageServer<'a> {
     ///
     /// The handler is owned for the lifetime of the language server; the
     /// underlying GLib signal machinery drops it when the server itself is
-    /// dropped.
-    pub fn handle_message<H: LanguageServerHandler + 'static>(&mut self, handler: H) -> Result<()> {
+    /// dropped. It is called on frida's thread, so it has to be `Send`:
+    ///
+    /// ```compile_fail,E0277
+    /// use std::rc::Rc;
+    ///
+    /// struct Handler(Rc<()>);
+    ///
+    /// impl frida::LanguageServerHandler for Handler {
+    ///     fn on_message(&mut self, _json: &str) {}
+    /// }
+    ///
+    /// fn install(server: &mut frida::LanguageServer<'_>) {
+    ///     let _ = server.handle_message(Handler(Rc::new(())));
+    /// }
+    /// ```
+    pub fn handle_message<H: LanguageServerHandler + Send + 'static>(
+        &mut self,
+        handler: H,
+    ) -> Result<()> {
         let message = CString::new("message").map_err(|_| Error::CStringFailed)?;
         let boxed = Box::into_raw(Box::new(HandlerBox {
             handler: Box::new(handler),
