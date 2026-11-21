@@ -1,9 +1,10 @@
 //! The script message and RPC plumbing: who receives a message, which call a
 //! reply belongs to, and what a call does when no reply can come.
 //!
-//! Each test attaches to its own process (pid 0). A test that would hang runs
-//! its work on a thread of its own and fails when that thread does not finish
-//! in time, so a regression shows as a failure instead of a stuck test run.
+//! Each test attaches to its own process (pid 0), through the one device
+//! manager the tests share. A test that would hang runs its work on a thread of
+//! its own and fails when that thread does not finish in time, so a regression
+//! shows as a failure instead of a stuck test run.
 
 use frida::{DeviceManager, Error, Frida, Message, ScriptHandler, ScriptOption};
 use serde_json::{Value, json};
@@ -17,6 +18,25 @@ static FRIDA_SERIAL: Mutex<()> = Mutex::new(());
 
 fn serial_guard() -> MutexGuard<'static, ()> {
     FRIDA_SERIAL.lock().unwrap_or_else(|p| p.into_inner())
+}
+
+/// The device manager every test shares, as a program has one for its whole
+/// life. On Android each manager that attaches to its own process loads another
+/// copy of frida's agent, whose thread-local storage keys are never returned,
+/// and the process runs out of them after a dozen.
+struct SharedManager(DeviceManager<'static>);
+
+// SAFETY: a test uses the manager only while it holds `FRIDA_SERIAL`, so it is
+// never used from two threads at once, and frida-core's device manager does not
+// belong to the thread that created it.
+unsafe impl Send for SharedManager {}
+unsafe impl Sync for SharedManager {}
+
+static MANAGER: LazyLock<SharedManager> =
+    LazyLock::new(|| SharedManager(DeviceManager::obtain(&FRIDA)));
+
+fn local_device() -> frida::Device<'static> {
+    MANAGER.0.get_local_device().expect("local device")
 }
 
 /// Runs `work` on a thread of its own and returns what it returns, failing the
@@ -43,8 +63,7 @@ fn with_script<T>(
     handler: Option<Install>,
     work: impl FnOnce(&mut frida::Script) -> T,
 ) -> T {
-    let dm = DeviceManager::obtain(&FRIDA);
-    let device = dm.get_local_device().expect("local device");
+    let device = local_device();
     let session = device.attach(0).expect("attach to self");
     let mut opts = ScriptOption::new();
     let mut script = session.create_script(source, &mut opts).expect("script");
@@ -199,8 +218,7 @@ fn a_call_after_unload_fails_instead_of_waiting_for_ever() {
 fn a_call_pending_when_the_session_detaches_fails() {
     let _serial = serial_guard();
     let result = within(20, || {
-        let dm = DeviceManager::obtain(&FRIDA);
-        let device = dm.get_local_device().expect("local device");
+        let device = local_device();
         let session = device.attach(0).expect("attach to self");
         let mut opts = ScriptOption::new();
         // `never` never settles, so its reply can only be the script going away.
@@ -322,8 +340,7 @@ fn a_message_after_the_script_is_dropped_does_not_reach_the_freed_handler() {
     let dropped = Arc::new(AtomicBool::new(false));
     let (count_c, dropped_c) = (count.clone(), dropped.clone());
     within(20, move || {
-        let dm = DeviceManager::obtain(&FRIDA);
-        let device = dm.get_local_device().expect("local device");
+        let device = local_device();
         let session = device.attach(0).expect("attach to self");
         let mut opts = ScriptOption::new();
         let mut script = session
@@ -353,8 +370,7 @@ fn a_message_after_the_script_is_dropped_does_not_reach_the_freed_handler() {
 fn swapped_exports_cannot_outlive_their_script() {
     let _serial = serial_guard();
     let result = within(20, || {
-        let dm = DeviceManager::obtain(&FRIDA);
-        let device = dm.get_local_device().expect("local device");
+        let device = local_device();
         let session = device.attach(0).expect("attach to self");
         let mut opts = ScriptOption::new();
         let mut first = session
