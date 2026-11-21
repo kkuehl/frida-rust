@@ -417,11 +417,28 @@ impl PeModule {
 
     /// Where the image's data for `rva` is, or `None` if the image has no data there.
     ///
-    /// The pointer is into the module's source and is valid while the module is; how many bytes
-    /// follow it is for the caller to know from the image.
+    /// The pointer is into the module's source and is valid while the module is.
+    /// [`PeModule::data_range_at_rva`] also tells how many bytes follow it.
     pub fn data_at_rva(&self, rva: u32) -> Option<*const c_void> {
-        let data = unsafe { gum_sys::gum_pe_module_get_data_at_rva(self.inner, rva) };
-        if data.is_null() { None } else { Some(data) }
+        self.data_range_at_rva(rva).map(|(data, _)| data)
+    }
+
+    /// Where the image's data for `rva` is and how many bytes of it there are from there on, or
+    /// `None` if the image has no data there.
+    ///
+    /// In an image parsed from a file the bytes end with the section's data, or with the
+    /// headers for an RVA inside them. In one read from memory they end with the image.
+    ///
+    /// The pointer is into the module's source and is valid while the module is.
+    pub fn data_range_at_rva(&self, rva: u32) -> Option<(*const c_void, usize)> {
+        let mut available: gum_sys::gsize = 0;
+        let data =
+            unsafe { gum_sys::gum_pe_module_get_data_at_rva(self.inner, rva, &mut available) };
+        if data.is_null() {
+            None
+        } else {
+            Some((data, available as usize))
+        }
     }
 
     /// Calls `callback` with each section until it returns `false`.

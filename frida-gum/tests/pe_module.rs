@@ -455,6 +455,23 @@ fn finds_data_by_rva() {
 }
 
 #[test]
+fn tells_how_much_data_follows_an_rva() {
+    let module = full_module();
+
+    let (alpha, available) = module
+        .data_range_at_rva(0x2050)
+        .expect("an RVA inside .rdata has data");
+
+    // The data runs to the end of .rdata, which is also where the file ends.
+    assert_eq!(available, (RDATA_RVA + RDATA_SIZE - 0x2050) as usize);
+    // SAFETY: that many bytes follow the pointer, and `module` is alive.
+    let rest = unsafe { std::slice::from_raw_parts(alpha.cast::<u8>(), available) };
+    assert!(rest.starts_with(b"alpha\0"));
+    assert_eq!(module.data_at_rva(0x2050), Some(alpha));
+    assert!(module.data_range_at_rva(SIZE_OF_IMAGE + 0x1000).is_none());
+}
+
+#[test]
 fn enumerates_exports() {
     let exports = full_module().exports();
 
