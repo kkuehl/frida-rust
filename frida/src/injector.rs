@@ -156,9 +156,9 @@ impl Inject for Injector<'_> {
         )
         .map_err(|_| Error::CStringFailed)?;
 
-        let entrypoint = CString::new(entrypoint.as_ref()).unwrap();
+        let entrypoint = CString::new(entrypoint.as_ref()).map_err(|_| Error::CStringFailed)?;
 
-        let data = CString::new(data).unwrap();
+        let data = CString::new(data).map_err(|_| Error::CStringFailed)?;
         let mut error: *mut frida_sys::GError = std::ptr::null_mut();
 
         let id = unsafe {
@@ -192,9 +192,9 @@ impl Inject for Injector<'_> {
         D: Into<Vec<u8>>,
         E: AsRef<str>,
     {
-        let entrypoint = CString::new(entrypoint.as_ref()).unwrap();
+        let entrypoint = CString::new(entrypoint.as_ref()).map_err(|_| Error::CStringFailed)?;
 
-        let data = CString::new(data).unwrap();
+        let data = CString::new(data).map_err(|_| Error::CStringFailed)?;
         let mut error: *mut frida_sys::GError = std::ptr::null_mut();
 
         let id = unsafe {
@@ -248,9 +248,9 @@ impl Inject for Device<'_> {
         )
         .map_err(|_| Error::CStringFailed)?;
 
-        let entrypoint = CString::new(entrypoint.as_ref()).unwrap();
+        let entrypoint = CString::new(entrypoint.as_ref()).map_err(|_| Error::CStringFailed)?;
 
-        let data = CString::new(data).unwrap();
+        let data = CString::new(data).map_err(|_| Error::CStringFailed)?;
         let mut error: *mut frida_sys::GError = std::ptr::null_mut();
 
         let id = unsafe {
@@ -284,9 +284,9 @@ impl Inject for Device<'_> {
         D: Into<Vec<u8>>,
         E: AsRef<str>,
     {
-        let entrypoint = CString::new(entrypoint.as_ref()).unwrap();
+        let entrypoint = CString::new(entrypoint.as_ref()).map_err(|_| Error::CStringFailed)?;
 
-        let data = CString::new(data).unwrap();
+        let data = CString::new(data).map_err(|_| Error::CStringFailed)?;
         let mut error: *mut frida_sys::GError = std::ptr::null_mut();
 
         let id = unsafe {

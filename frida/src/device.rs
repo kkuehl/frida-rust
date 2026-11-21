@@ -331,7 +331,7 @@ impl<'a> Device<'a> {
     /// called to continue execution.
     pub fn spawn<S: AsRef<str>>(&mut self, program: S, options: &SpawnOptions) -> Result<u32> {
         let mut error: *mut frida_sys::GError = std::ptr::null_mut();
-        let program = CString::new(program.as_ref()).unwrap();
+        let program = CString::new(program.as_ref()).map_err(|_| Error::CStringFailed)?;
 
         let pid = unsafe {
             frida_sys::frida_device_spawn_sync(

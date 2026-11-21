@@ -238,7 +238,7 @@ impl<'a> DeviceManager<'a> {
     /// ```
     pub fn get_device_by_id(&'a self, device_id: &str) -> Result<Device<'a>> {
         let mut error: *mut frida_sys::GError = std::ptr::null_mut();
-        let cstring = CString::new(device_id).unwrap();
+        let cstring = CString::new(device_id).map_err(|_| Error::CStringFailed)?;
 
         let device_ptr = unsafe {
             frida_sys::frida_device_manager_get_device_by_id_sync(
