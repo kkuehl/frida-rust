@@ -10,7 +10,7 @@ use frida_sys::{
 };
 use serde::Deserialize;
 use serde_json::{Value, json};
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::{Sender, channel};
@@ -548,15 +548,25 @@ impl ScriptOption {
         Self { ptr }
     }
 
-    /// Get the name of the script.
+    /// Get the name of the script, or `""` if it has none.
+    ///
+    /// The options own their name only until it is next set, so the name is
+    /// copied out, once for each distinct name, and kept for the life of the
+    /// process: that is what lets it be `'static`.
     pub fn get_name(&self) -> &'static str {
-        let name = unsafe { CStr::from_ptr(frida_sys::frida_script_options_get_name(self.ptr)) };
-        name.to_str().unwrap_or_default()
+        let name = unsafe { frida_sys::frida_script_options_get_name(self.ptr) };
+        if name.is_null() {
+            return "";
+        }
+        let name = unsafe { CStr::from_ptr(name) };
+        intern(name.to_str().unwrap_or_default())
     }
 
-    /// Set the name of the script.
+    /// Set the name of the script. A name is cut at a NUL in it, if any.
     pub fn set_name(self, name: &str) -> Self {
-        unsafe { frida_sys::frida_script_options_set_name(self.ptr, name.as_ptr() as _) };
+        let name = name.split('\0').next().unwrap_or_default();
+        let name = CString::new(name).unwrap_or_default();
+        unsafe { frida_sys::frida_script_options_set_name(self.ptr, name.as_ptr()) };
         self
     }
 
@@ -585,4 +595,18 @@ impl Drop for ScriptOption {
             )
         }
     }
+}
+
+/// The one `'static` copy of `name`, made the first time it is asked for.
+fn intern(name: &str) -> &'static str {
+    static NAMES: Mutex<BTreeSet<&'static str>> = Mutex::new(BTreeSet::new());
+    let mut names = NAMES
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    if let Some(known) = names.get(name) {
+        return known;
+    }
+    let name: &'static str = Box::leak(name.into());
+    names.insert(name);
+    name
 }
