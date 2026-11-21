@@ -4,7 +4,7 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
-use frida_sys::{_FridaBinaryMetadata, g_strfreev};
+use frida_sys::_FridaBinaryMetadata;
 use std::ffi::{CStr, CString};
 use std::marker::PhantomData;
 
@@ -67,15 +67,14 @@ impl<'a> BinaryMetadata<'a> {
         if ptr.is_null() || len <= 0 {
             return Vec::new();
         }
-        let archs = (0..len)
+        // The array is the metadata's own, so it is copied out of and left in place.
+        (0..len)
             .map(|i| {
                 unsafe { CStr::from_ptr(*ptr.add(i as usize)) }
                     .to_string_lossy()
                     .into_owned()
             })
-            .collect();
-        unsafe { g_strfreev(ptr) };
-        archs
+            .collect()
     }
 }
 
