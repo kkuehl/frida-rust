@@ -62,6 +62,17 @@ pub enum SourceMaps {
     Omitted = frida_sys::FridaSourceMaps_FRIDA_SOURCE_MAPS_OMITTED as _,
 }
 
+pub(crate) fn source_maps_from_raw(raw: frida_sys::FridaSourceMaps) -> SourceMaps {
+    match raw {
+        frida_sys::FridaSourceMaps_FRIDA_SOURCE_MAPS_OMITTED => SourceMaps::Omitted,
+        frida_sys::FridaSourceMaps_FRIDA_SOURCE_MAPS_INCLUDED => SourceMaps::Included,
+        // Every value the linked frida-core has is named above, which
+        // `enum_coverage` checks against its header. The enum has no variant
+        // for a value from some other version.
+        _ => SourceMaps::Included,
+    }
+}
+
 /// Whether to compress the emitted bundle with terser.
 #[repr(u32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -264,12 +275,7 @@ impl LibraryOptions {
 
     /// Whether source maps are emitted next to the modules.
     pub fn source_maps(&self) -> SourceMaps {
-        let raw = unsafe { frida_sys::frida_library_options_get_source_maps(self.ptr) };
-        if raw == frida_sys::FridaSourceMaps_FRIDA_SOURCE_MAPS_OMITTED {
-            SourceMaps::Omitted
-        } else {
-            SourceMaps::Included
-        }
+        source_maps_from_raw(unsafe { frida_sys::frida_library_options_get_source_maps(self.ptr) })
     }
 
     /// Set whether source maps are emitted next to the modules.

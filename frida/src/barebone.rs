@@ -154,7 +154,7 @@ pub enum BareboneStubFlavor {
 }
 
 impl BareboneStubFlavor {
-    fn from_raw(raw: frida_sys::FridaBareboneStubFlavor) -> Self {
+    pub(crate) fn from_raw(raw: frida_sys::FridaBareboneStubFlavor) -> Self {
         match raw {
             frida_sys::FridaBareboneStubFlavor_FRIDA_BAREBONE_STUB_FLAVOR_VZ => Self::Vz,
             frida_sys::FridaBareboneStubFlavor_FRIDA_BAREBONE_STUB_FLAVOR_PARALLELS => {
@@ -169,6 +169,12 @@ impl BareboneStubFlavor {
             frida_sys::FridaBareboneStubFlavor_FRIDA_BAREBONE_STUB_FLAVOR_VIRTUALBOX_CONSOLE => {
                 Self::VirtualBoxConsole
             }
+            frida_sys::FridaBareboneStubFlavor_FRIDA_BAREBONE_STUB_FLAVOR_GDB_REMOTE => {
+                Self::GdbRemote
+            }
+            // Every value the linked frida-core has is named above, which
+            // `enum_coverage` checks against its header. The enum has no
+            // variant for a value from some other version.
             _ => Self::GdbRemote,
         }
     }

@@ -197,12 +197,16 @@ pub enum PatternTypeKind {
 }
 
 impl PatternTypeKind {
-    fn from_raw(raw: frida_sys::FridaPatternTypeKind) -> Self {
+    pub(crate) fn from_raw(raw: frida_sys::FridaPatternTypeKind) -> Self {
         match raw {
             frida_sys::FridaPatternTypeKind_FRIDA_PATTERN_TYPE_KIND_UNION => Self::Union,
             frida_sys::FridaPatternTypeKind_FRIDA_PATTERN_TYPE_KIND_ENUM => Self::Enum,
             frida_sys::FridaPatternTypeKind_FRIDA_PATTERN_TYPE_KIND_BITFIELD => Self::Bitfield,
             frida_sys::FridaPatternTypeKind_FRIDA_PATTERN_TYPE_KIND_ALIAS => Self::Alias,
+            frida_sys::FridaPatternTypeKind_FRIDA_PATTERN_TYPE_KIND_STRUCT => Self::Struct,
+            // Every value the linked frida-core has is named above, which
+            // `enum_coverage` checks against its header. The enum has no
+            // variant for a value from some other version.
             _ => Self::Struct,
         }
     }
@@ -224,12 +228,18 @@ pub enum PatternTypeRefKind {
 }
 
 impl PatternTypeRefKind {
-    fn from_raw(raw: frida_sys::FridaPatternTypeRefKind) -> Self {
+    pub(crate) fn from_raw(raw: frida_sys::FridaPatternTypeRefKind) -> Self {
         match raw {
             frida_sys::FridaPatternTypeRefKind_FRIDA_PATTERN_TYPE_REF_KIND_NAMED => Self::Named,
             frida_sys::FridaPatternTypeRefKind_FRIDA_PATTERN_TYPE_REF_KIND_POINTER => Self::Pointer,
             frida_sys::FridaPatternTypeRefKind_FRIDA_PATTERN_TYPE_REF_KIND_ARRAY => Self::Array,
             frida_sys::FridaPatternTypeRefKind_FRIDA_PATTERN_TYPE_REF_KIND_PADDING => Self::Padding,
+            frida_sys::FridaPatternTypeRefKind_FRIDA_PATTERN_TYPE_REF_KIND_PRIMITIVE => {
+                Self::Primitive
+            }
+            // Every value the linked frida-core has is named above, which
+            // `enum_coverage` checks against its header. The enum has no
+            // variant for a value from some other version.
             _ => Self::Primitive,
         }
     }
@@ -247,10 +257,14 @@ pub enum PatternByteOrder {
 }
 
 impl PatternByteOrder {
-    fn from_raw(raw: frida_sys::FridaPatternByteOrder) -> Self {
+    pub(crate) fn from_raw(raw: frida_sys::FridaPatternByteOrder) -> Self {
         match raw {
             frida_sys::FridaPatternByteOrder_FRIDA_PATTERN_BYTE_ORDER_LITTLE => Self::Little,
             frida_sys::FridaPatternByteOrder_FRIDA_PATTERN_BYTE_ORDER_BIG => Self::Big,
+            frida_sys::FridaPatternByteOrder_FRIDA_PATTERN_BYTE_ORDER_NATIVE => Self::Native,
+            // Every value the linked frida-core has is named above, which
+            // `enum_coverage` checks against its header. The enum has no
+            // variant for a value from some other version.
             _ => Self::Native,
         }
     }
@@ -270,11 +284,15 @@ pub enum PatternBitKind {
 }
 
 impl PatternBitKind {
-    fn from_raw(raw: frida_sys::FridaPatternBitKind) -> Self {
+    pub(crate) fn from_raw(raw: frida_sys::FridaPatternBitKind) -> Self {
         match raw {
             frida_sys::FridaPatternBitKind_FRIDA_PATTERN_BIT_KIND_SIGNED => Self::Signed,
             frida_sys::FridaPatternBitKind_FRIDA_PATTERN_BIT_KIND_BOOL => Self::Bool,
             frida_sys::FridaPatternBitKind_FRIDA_PATTERN_BIT_KIND_ENUM => Self::Enum,
+            frida_sys::FridaPatternBitKind_FRIDA_PATTERN_BIT_KIND_UNSIGNED => Self::Unsigned,
+            // Every value the linked frida-core has is named above, which
+            // `enum_coverage` checks against its header. The enum has no
+            // variant for a value from some other version.
             _ => Self::Unsigned,
         }
     }
@@ -290,13 +308,18 @@ pub enum PatternVisualizerPresentation {
 }
 
 impl PatternVisualizerPresentation {
-    fn from_raw(raw: frida_sys::FridaPatternVisualizerPresentation) -> Self {
-        if raw
-            == frida_sys::FridaPatternVisualizerPresentation_FRIDA_PATTERN_VISUALIZER_PRESENTATION_INLINE
-        {
-            Self::Inline
-        } else {
-            Self::Detached
+    pub(crate) fn from_raw(raw: frida_sys::FridaPatternVisualizerPresentation) -> Self {
+        match raw {
+            frida_sys::FridaPatternVisualizerPresentation_FRIDA_PATTERN_VISUALIZER_PRESENTATION_INLINE => {
+                Self::Inline
+            }
+            frida_sys::FridaPatternVisualizerPresentation_FRIDA_PATTERN_VISUALIZER_PRESENTATION_DETACHED => {
+                Self::Detached
+            }
+            // Every value the linked frida-core has is named above, which
+            // `enum_coverage` checks against its header. The enum has no
+            // variant for a value from some other version.
+            _ => Self::Detached,
         }
     }
 }
@@ -311,13 +334,18 @@ pub enum PatternVisualizerArgumentKind {
 }
 
 impl PatternVisualizerArgumentKind {
-    fn from_raw(raw: frida_sys::FridaPatternVisualizerArgumentKind) -> Self {
-        if raw
-            == frida_sys::FridaPatternVisualizerArgumentKind_FRIDA_PATTERN_VISUALIZER_ARGUMENT_KIND_PATTERN
-        {
-            Self::Pattern
-        } else {
-            Self::Value
+    pub(crate) fn from_raw(raw: frida_sys::FridaPatternVisualizerArgumentKind) -> Self {
+        match raw {
+            frida_sys::FridaPatternVisualizerArgumentKind_FRIDA_PATTERN_VISUALIZER_ARGUMENT_KIND_PATTERN => {
+                Self::Pattern
+            }
+            frida_sys::FridaPatternVisualizerArgumentKind_FRIDA_PATTERN_VISUALIZER_ARGUMENT_KIND_VALUE => {
+                Self::Value
+            }
+            // Every value the linked frida-core has is named above, which
+            // `enum_coverage` checks against its header. The enum has no
+            // variant for a value from some other version.
+            _ => Self::Value,
         }
     }
 }

@@ -142,3 +142,143 @@ impl Drop for Frida {
         unsafe { frida_sys::frida_deinit() };
     }
 }
+
+/// Checks that the enums mapped from frida-core's values name every value the
+/// linked frida-core has, so that a new one in a later release is not quietly
+/// read as one of the old ones.
+#[cfg(test)]
+mod enum_coverage {
+    /// The enumerators of the C enum `name` in the committed frida-core.h,
+    /// which a FRIDA_VERSION bump updates with the devkit.
+    fn enumerators(name: &str) -> Vec<String> {
+        let header = include_str!("../../frida-sys/include/frida-core.h");
+        let end = header
+            .find(&format!("}} {name};"))
+            .unwrap_or_else(|| panic!("{name} is not in frida-core.h"));
+        let start = header[..end].rfind("typedef enum {").unwrap() + "typedef enum {".len();
+        header[start..end]
+            .split(',')
+            .map(|item| item.split('=').next().unwrap().trim().to_string())
+            .filter(|item| !item.is_empty())
+            .collect()
+    }
+
+    /// `count` raw values map to `count` different variants, and the header
+    /// has exactly `count` values.
+    fn check<T: PartialEq + std::fmt::Debug>(name: &str, mapped: &[(u32, T)]) {
+        let values = enumerators(name);
+        assert_eq!(
+            values.len(),
+            mapped.len(),
+            "{name} has {values:?}; map each one in its from_raw and list it here"
+        );
+        for (i, (raw, variant)) in mapped.iter().enumerate() {
+            assert_eq!(*raw as usize, i, "{name}: {variant:?}");
+            for (_, other) in &mapped[..i] {
+                assert_ne!(other, variant, "{name}: two values map to {variant:?}");
+            }
+        }
+    }
+
+    macro_rules! coverage {
+        ($test:ident, $c:literal, $from:expr, [$($raw:path),* $(,)?]) => {
+            #[test]
+            fn $test() {
+                check($c, &[$(($raw as u32, $from($raw))),*]);
+            }
+        };
+    }
+
+    use crate::barebone::BareboneStubFlavor;
+    use crate::pattern::{
+        PatternBitKind, PatternByteOrder, PatternTypeKind, PatternTypeRefKind,
+        PatternVisualizerArgumentKind, PatternVisualizerPresentation,
+    };
+    use frida_sys::*;
+
+    coverage!(
+        barebone_stub_flavor,
+        "FridaBareboneStubFlavor",
+        BareboneStubFlavor::from_raw,
+        [
+            FridaBareboneStubFlavor_FRIDA_BAREBONE_STUB_FLAVOR_GDB_REMOTE,
+            FridaBareboneStubFlavor_FRIDA_BAREBONE_STUB_FLAVOR_VZ,
+            FridaBareboneStubFlavor_FRIDA_BAREBONE_STUB_FLAVOR_PARALLELS,
+            FridaBareboneStubFlavor_FRIDA_BAREBONE_STUB_FLAVOR_ANDROID_EMULATOR,
+            FridaBareboneStubFlavor_FRIDA_BAREBONE_STUB_FLAVOR_VIRTUALBOX,
+            FridaBareboneStubFlavor_FRIDA_BAREBONE_STUB_FLAVOR_VIRTUALBOX_CONSOLE,
+        ]
+    );
+    coverage!(
+        source_maps,
+        "FridaSourceMaps",
+        crate::compiler::source_maps_from_raw,
+        [
+            FridaSourceMaps_FRIDA_SOURCE_MAPS_INCLUDED,
+            FridaSourceMaps_FRIDA_SOURCE_MAPS_OMITTED,
+        ]
+    );
+    coverage!(
+        pattern_type_kind,
+        "FridaPatternTypeKind",
+        PatternTypeKind::from_raw,
+        [
+            FridaPatternTypeKind_FRIDA_PATTERN_TYPE_KIND_STRUCT,
+            FridaPatternTypeKind_FRIDA_PATTERN_TYPE_KIND_UNION,
+            FridaPatternTypeKind_FRIDA_PATTERN_TYPE_KIND_ENUM,
+            FridaPatternTypeKind_FRIDA_PATTERN_TYPE_KIND_BITFIELD,
+            FridaPatternTypeKind_FRIDA_PATTERN_TYPE_KIND_ALIAS,
+        ]
+    );
+    coverage!(
+        pattern_type_ref_kind,
+        "FridaPatternTypeRefKind",
+        PatternTypeRefKind::from_raw,
+        [
+            FridaPatternTypeRefKind_FRIDA_PATTERN_TYPE_REF_KIND_PRIMITIVE,
+            FridaPatternTypeRefKind_FRIDA_PATTERN_TYPE_REF_KIND_NAMED,
+            FridaPatternTypeRefKind_FRIDA_PATTERN_TYPE_REF_KIND_POINTER,
+            FridaPatternTypeRefKind_FRIDA_PATTERN_TYPE_REF_KIND_ARRAY,
+            FridaPatternTypeRefKind_FRIDA_PATTERN_TYPE_REF_KIND_PADDING,
+        ]
+    );
+    coverage!(
+        pattern_byte_order,
+        "FridaPatternByteOrder",
+        PatternByteOrder::from_raw,
+        [
+            FridaPatternByteOrder_FRIDA_PATTERN_BYTE_ORDER_NATIVE,
+            FridaPatternByteOrder_FRIDA_PATTERN_BYTE_ORDER_LITTLE,
+            FridaPatternByteOrder_FRIDA_PATTERN_BYTE_ORDER_BIG,
+        ]
+    );
+    coverage!(
+        pattern_bit_kind,
+        "FridaPatternBitKind",
+        PatternBitKind::from_raw,
+        [
+            FridaPatternBitKind_FRIDA_PATTERN_BIT_KIND_UNSIGNED,
+            FridaPatternBitKind_FRIDA_PATTERN_BIT_KIND_SIGNED,
+            FridaPatternBitKind_FRIDA_PATTERN_BIT_KIND_BOOL,
+            FridaPatternBitKind_FRIDA_PATTERN_BIT_KIND_ENUM,
+        ]
+    );
+    coverage!(
+        pattern_visualizer_presentation,
+        "FridaPatternVisualizerPresentation",
+        PatternVisualizerPresentation::from_raw,
+        [
+            FridaPatternVisualizerPresentation_FRIDA_PATTERN_VISUALIZER_PRESENTATION_DETACHED,
+            FridaPatternVisualizerPresentation_FRIDA_PATTERN_VISUALIZER_PRESENTATION_INLINE,
+        ]
+    );
+    coverage!(
+        pattern_visualizer_argument_kind,
+        "FridaPatternVisualizerArgumentKind",
+        PatternVisualizerArgumentKind::from_raw,
+        [
+            FridaPatternVisualizerArgumentKind_FRIDA_PATTERN_VISUALIZER_ARGUMENT_KIND_VALUE,
+            FridaPatternVisualizerArgumentKind_FRIDA_PATTERN_VISUALIZER_ARGUMENT_KIND_PATTERN,
+        ]
+    );
+}
