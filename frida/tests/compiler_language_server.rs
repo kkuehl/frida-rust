@@ -99,6 +99,10 @@ impl LanguageServerHandler for LspHandler {
 #[test]
 fn language_server_lifecycle() {
     let _serial = serial_guard();
+    // `LanguageServer::new` takes no `Frida`, but frida-core must be initialised
+    // before it is called: without this, whether it was depended on which test
+    // ran first, and when this one did, it crashed in GLib.
+    let _frida = &*FRIDA;
 
     let dir = tempfile::tempdir().expect("tempdir");
     // Give the LSP something to look at so it doesn't complain about the root.
