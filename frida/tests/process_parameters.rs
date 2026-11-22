@@ -2,14 +2,19 @@
 //! `Process::get_parameters`.
 //!
 //! Tests run against the real frida-core (auto-downloaded via the
-//! `auto-download` feature) and inspect the running test process itself —
-//! its pid is guaranteed to be present in the enumeration.
+//! `auto-download` feature) and inspect a process known to be running: the
+//! test process itself, or on Android the one that started it.
+//!
+//! The tests share one device manager, as a program has one for its whole life.
+//! On Android a listing starts a Java VM in the calling process, which
+//! frida-core 17.27 shuts down when the manager closes, and ART cannot be
+//! started a second time in one process.
 //!
 //! No `device.attach(0)` happens here: enumerate_processes only reads
 //! /proc-style host metadata, so the docker test job does not need
 //! `--cap-add=SYS_PTRACE`.
 
-use frida::{DeviceManager, Frida, Scope, Variant};
+use frida::{Device, DeviceManager, Frida, Scope, Variant};
 use std::sync::{LazyLock, Mutex, MutexGuard};
 
 static FRIDA: LazyLock<Frida> = LazyLock::new(|| unsafe { Frida::obtain() });
@@ -22,27 +27,56 @@ fn serial_guard() -> MutexGuard<'static, ()> {
     FRIDA_SERIAL.lock().unwrap_or_else(|p| p.into_inner())
 }
 
+struct SharedManager(DeviceManager<'static>);
+
+// SAFETY: a test uses the manager only while it holds `FRIDA_SERIAL`, so it is
+// never used from two threads at once, and frida-core's device manager does not
+// belong to the thread that created it.
+unsafe impl Send for SharedManager {}
+unsafe impl Sync for SharedManager {}
+
+static MANAGER: LazyLock<SharedManager> =
+    LazyLock::new(|| SharedManager(DeviceManager::obtain(&FRIDA)));
+
+fn local_device() -> Device<'static> {
+    MANAGER
+        .0
+        .get_local_device()
+        .expect("local device should be available")
+}
+
+/// The pid of a process a listing is sure to hold: this one, except on Android.
+/// There frida-core lists processes through a helper inside the calling process,
+/// which leaves that process out, so it is the process that started this one.
+fn known_pid() -> u32 {
+    #[cfg(target_os = "android")]
+    {
+        std::os::unix::process::parent_id()
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        std::process::id()
+    }
+}
+
 #[test]
 fn get_parameters_returns_data_under_full_scope() {
     let _serial = serial_guard();
-    let dm = DeviceManager::obtain(&FRIDA);
-    let device = dm
-        .get_local_device()
-        .expect("local device should be available");
+    let device = local_device();
 
     let processes = device.enumerate_processes_with_options(Scope::Full);
     assert!(
         !processes.is_empty(),
-        "Scope::Full enumeration returned no processes — the test runner itself should be present"
+        "Scope::Full enumeration returned no processes"
     );
 
-    let own_pid = std::process::id();
-    let me = processes
+    let known = known_pid();
+    let process = processes
         .iter()
-        .find(|p| p.get_pid() == own_pid)
-        .expect("test process pid should appear in the Scope::Full enumeration");
+        .find(|p| p.get_pid() == known)
+        .expect("a process known to be running should appear in the Scope::Full enumeration");
 
-    let params = me.get_parameters();
+    let params = process.get_parameters();
     assert!(
         !params.is_empty(),
         "Scope::Full Process::get_parameters() must populate the parameter table"
@@ -81,10 +115,7 @@ fn variant_iteration_never_panics_on_unknown_signatures() {
     // a future regression that reintroduces a panic on unknown sigs will
     // crash this test instead of a production caller.
     let _serial = serial_guard();
-    let dm = DeviceManager::obtain(&FRIDA);
-    let device = dm
-        .get_local_device()
-        .expect("local device should be available");
+    let device = local_device();
 
     let processes = device.enumerate_processes_with_options(Scope::Full);
     for p in &processes {
@@ -105,23 +136,20 @@ fn variant_iteration_never_panics_on_unknown_signatures() {
 #[test]
 fn get_parameters_is_empty_under_minimal_scope() {
     let _serial = serial_guard();
-    let dm = DeviceManager::obtain(&FRIDA);
-    let device = dm
-        .get_local_device()
-        .expect("local device should be available");
+    let device = local_device();
 
     // Minimal scope must NOT populate the parameter table — that's the
     // whole reason Scope::Full exists. The plain enumerate_processes()
     // alias also uses Minimal; regressions here would silently bloat
     // every caller's enumeration.
     let processes = device.enumerate_processes_with_options(Scope::Minimal);
-    let own_pid = std::process::id();
-    let me = processes
+    let known = known_pid();
+    let process = processes
         .iter()
-        .find(|p| p.get_pid() == own_pid)
-        .expect("test process pid should appear in the Scope::Minimal enumeration");
+        .find(|p| p.get_pid() == known)
+        .expect("a process known to be running should appear in the Scope::Minimal enumeration");
 
-    let params = me.get_parameters();
+    let params = process.get_parameters();
     assert!(
         params.is_empty(),
         "Scope::Minimal Process::get_parameters() must return an empty map, got keys {:?}",

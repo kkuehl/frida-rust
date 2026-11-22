@@ -13,6 +13,20 @@ fn serial_guard() -> MutexGuard<'static, ()> {
     FRIDA_SERIAL.lock().unwrap_or_else(|p| p.into_inner())
 }
 
+/// The pid of a process a listing is sure to hold: this one, except on Android.
+/// There frida-core lists processes through a helper inside the calling process,
+/// which leaves that process out, so it is the process that started this one.
+fn known_pid() -> u32 {
+    #[cfg(target_os = "android")]
+    {
+        std::os::unix::process::parent_id()
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        std::process::id()
+    }
+}
+
 fn local<'a>(dm: &'a DeviceManager<'a>) -> Device<'a> {
     dm.get_local_device()
         .expect("local device should always exist")
@@ -92,19 +106,19 @@ fn query_system_parameters_populates_os_key() {
 }
 
 #[test]
-fn enumerate_processes_includes_this_test_process() {
+fn enumerate_processes_includes_a_process_known_to_be_running() {
     let _serial = serial_guard();
     let dm = DeviceManager::obtain(&FRIDA);
     let dev = local(&dm);
 
     let procs = dev.enumerate_processes();
-    let own = std::process::id();
-    let me = procs
+    let known = known_pid();
+    let process = procs
         .iter()
-        .find(|p| p.get_pid() == own)
-        .expect("the running test process must appear in enumerate_processes()");
+        .find(|p| p.get_pid() == known)
+        .expect("a process known to be running must appear in enumerate_processes()");
     assert!(
-        !me.get_name().is_empty(),
+        !process.get_name().is_empty(),
         "enumerated process must have a name"
     );
 }
