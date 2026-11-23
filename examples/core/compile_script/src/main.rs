@@ -1,4 +1,4 @@
-use frida::{DeviceManager, ScriptRuntime, ScriptOptions};
+use frida::{DeviceManager, ScriptOptions, ScriptRuntime};
 
 const BYTECODE_PATH: &str = "compiled.bin";
 

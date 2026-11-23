@@ -1,10 +1,6 @@
 [workspace]
 resolver = "2"
-members = [
-    "frida-sys",
-    "frida",
-    "examples/core/*",
-]
+members = ["frida-sys", "frida", "examples/core/*"]
 default-members = ["frida-sys", "frida"]
 
 [workspace.package]

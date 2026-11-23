@@ -33,18 +33,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     "#;
     let script = session.create_script(script_source, None, None)?;
 
-    let _handler = script.on_message(|message, data| {
-        match message {
-            Message::Log(msg) => println!("[*] {:?}: {:?}", msg.level, msg.payload),
-            Message::Send(msg) => {
-                if let Some(data) = data {
-                    println!("[*] Send: {:?}, Data: {:?}", msg.payload, data);
-                } else {
-                    println!("[*] Send: {:?}", msg.payload);
-                }
+    let _handler = script.on_message(|message, data| match message {
+        Message::Log(msg) => println!("[*] {:?}: {:?}", msg.level, msg.payload),
+        Message::Send(msg) => {
+            if let Some(data) = data {
+                println!("[*] Send: {:?}, Data: {:?}", msg.payload, data);
+            } else {
+                println!("[*] Send: {:?}", msg.payload);
             }
-            other => println!("- {other:?}"),
         }
+        other => println!("- {other:?}"),
     });
 
     script.load(None)?;

@@ -1,4 +1,4 @@
-use frida::{DeviceManager, Message, ScriptRuntime, ScriptOptions};
+use frida::{DeviceManager, Message, ScriptOptions, ScriptRuntime};
 use std::sync::mpsc;
 use std::time::Duration;
 
