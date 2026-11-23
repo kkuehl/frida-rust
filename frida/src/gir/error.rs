@@ -4,7 +4,7 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
-//! The one error type of [`crate::gir`].
+//! The one error type of [`frida`](crate).
 //!
 //! Every call that can fail returns [`Error`]: what kind of failure it was, to match on,
 //! frida-core's message, and the error underneath it where there is one. The kinds are
@@ -32,7 +32,7 @@ pub use crate::gir::generated::ErrorKind;
 /// The `GIOErrorEnum` code of a cancelled call.
 const G_IO_ERROR_CANCELLED: i32 = 19;
 
-/// What went wrong in a call to [`crate::gir`].
+/// What went wrong in a call to [`frida`](crate).
 ///
 /// Match on [`kind`](Self::kind); [`message`](Self::message) is frida-core's text, meant
 /// for people. The type is opaque so that more can be added to it without breaking

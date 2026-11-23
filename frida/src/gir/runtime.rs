@@ -144,17 +144,17 @@ impl Drop for Lease {
     }
 }
 
-/// Deinitializes frida-core for the rest of the process, if nothing of [`crate::gir`] is
+/// Deinitializes frida-core for the rest of the process, if nothing of [`frida`](crate) is
 /// still alive.
 ///
 /// A program that wants frida-core's threads gone before it exits may call this (most do
-/// not need to). Afterwards every constructor in [`crate::gir`] fails: frida-core cannot be
+/// not need to). Afterwards every constructor in [`frida`](crate) fails: frida-core cannot be
 /// initialized again in the same process.
 ///
 /// # Errors
 ///
 /// [`ErrorKind::InvalidOperation`](crate::gir::ErrorKind::InvalidOperation), leaving
-/// frida-core running, while any handle, owner or signal handler from [`crate::gir`] is
+/// frida-core running, while any handle, owner or signal handler from [`frida`](crate) is
 /// alive: drop them first. Deinitializing when frida-core is not initialized, or already
 /// deinitialized, does nothing and succeeds.
 pub fn deinit() -> Result<(), Error> {
@@ -383,7 +383,7 @@ pub(crate) fn release_later(object: Object, release: unsafe fn(*mut frida_sys::G
     unsafe { schedule(run, job.cast(), destroy) };
 }
 
-/// A reference to a GObject: the base of every class in [`crate::gir`].
+/// A reference to a GObject: the base of every class in [`frida`](crate).
 #[repr(transparent)]
 pub struct Object(NonNull<frida_sys::GObject>);
 
