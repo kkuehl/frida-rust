@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
 """List the functions of the pinned Frida devkits that no Rust source here names.
 
+    scripts/api-coverage.py gum  [--full] [TYPE...]
     scripts/api-coverage.py core [--full] [TYPE...]
 
 It reads the bindings bindgen generated in the last build, so build first:
 
+    cargo build -p frida-gum --features auto-download,script    # for gum
     cargo build -p frida --features auto-download               # for core
 
 Without --full it prints one line per type; with it, every function. Naming types
 (e.g. frida_device gum_elf_module) limits the output to those.
 
-A function counts as covered when its name appears anywhere in the crate's Rust sources. Left out
-as plumbing a wrapper does not call by name: *_get_type,
+A function counts as covered when its name appears anywhere in the crate's Rust sources or in
+the C glue of frida-gum-sys. Left out as plumbing a wrapper does not call by name: *_get_type,
 *_quark, *_ref, *_unref, *_copy, *_free, and the async half of a call whose *_sync form exists.
 The list is for the devkit of the machine it runs on: other targets declare some other functions.
 """
@@ -25,6 +27,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 LIBRARIES = {
     # name: (function prefix, build directory pattern, marker of the fullest bindings, sources)
+    "gum": ("gum_", "frida-gum-sys-*", "gum_script_backend_", ["frida-gum/src", "frida-gum-sys"]),
     "core": ("frida_", "frida-sys-*", "frida_device_manager_", ["frida/src"]),
 }
 

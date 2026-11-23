@@ -1,0 +1,27 @@
+[package]
+name = "frida-gum-sys"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description.workspace = true
+
+
+[features]
+auto-download = ["frida-build"]
+event-sink = ["cc"]
+invocation-listener = ["cc"]
+stalker-observer = ["cc"]
+stalker-params = ["cc"]
+# The `js` (gumjs) target needs `cc` on Windows for the `msvc_compat.c` shim,
+# otherwise the build script fails with "cannot find module or crate `cc`".
+js = ["cc"]
+
+[build-dependencies]
+bindgen = "0.72.1"
+cc = { version = "1", optional = true }
+frida-build = { path = "../frida-build", optional = true, version = "0.17.2" }
+
+[badges]
+maintenance = { status = "experimental" }
