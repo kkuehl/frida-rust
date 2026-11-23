@@ -11,7 +11,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     #[cfg(target_os = "macos")]
     let script_source = include_bytes!("../../../../target/release/libinject_example.dylib");
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(windows)]
+    let script_source = include_bytes!("../../../../target/release/inject_example.dll");
+    #[cfg(not(any(target_os = "macos", windows)))]
     let script_source = include_bytes!("../../../../target/release/libinject_example.so");
     let id = device.inject_library_blob(pid, script_source, "injected_function", "w00t", None)?;
 
