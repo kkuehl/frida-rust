@@ -376,11 +376,10 @@ fn a_script_that_does_not_compile_is_an_error_with_a_message() {
     assert!(error.message().contains("NUL"), "{error}");
 }
 
-#[test]
-fn attaching_to_a_pid_that_does_not_exist_is_process_not_found() {
-    let _serial = serial();
-    // A pid that existed a moment ago, and has been reaped: nothing runs under it. The
-    // child is this test binary listing its tests, which exits at once on every platform.
+/// A pid nothing runs under: one that existed a moment ago, and has been reaped. The child
+/// is this test binary listing its tests, which exits at once.
+#[cfg(not(windows))]
+fn unused_pid() -> u32 {
     let mut child = std::process::Command::new(std::env::current_exe().unwrap())
         .arg("--list")
         .stdout(std::process::Stdio::null())
@@ -388,6 +387,22 @@ fn attaching_to_a_pid_that_does_not_exist_is_process_not_found() {
         .unwrap();
     let pid = child.id();
     child.wait().unwrap();
+    pid
+}
+
+/// A pid nothing runs under. Not that of a child that has exited: Windows keeps a process,
+/// and its pid, for as long as anything holds a handle to it, which security software may,
+/// and frida-core 17.27.4 never returns from attaching to one (its helper drops the Gum
+/// error it gets allocating memory there). Pids are multiples of four, far below this one.
+#[cfg(windows)]
+fn unused_pid() -> u32 {
+    u32::MAX - 3
+}
+
+#[test]
+fn attaching_to_a_pid_that_does_not_exist_is_process_not_found() {
+    let _serial = serial();
+    let pid = unused_pid();
 
     let manager = DeviceManager::new().unwrap();
     let device = manager.get_local_device().unwrap();

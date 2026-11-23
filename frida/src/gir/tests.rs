@@ -9,7 +9,6 @@
 //! what used to panic.
 
 use std::collections::HashMap;
-use std::path::Path;
 use std::time::Duration;
 
 use crate::Variant;
@@ -394,6 +393,7 @@ fn a_length_that_does_not_fit_is_an_invalid_argument() {
 #[test]
 fn a_path_that_is_not_utf8_is_an_invalid_argument() {
     use std::os::unix::ffi::OsStrExt;
+    use std::path::Path;
     let path = Path::new(std::ffi::OsStr::from_bytes(b"/tmp/\xff"));
     assert_eq!(
         marshal::path(path).unwrap_err().kind(),

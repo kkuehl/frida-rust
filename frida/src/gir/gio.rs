@@ -248,7 +248,7 @@ pub enum FileMonitorEvent {
     /// The file was moved out of the monitored directory.
     MovedOut,
     /// A raw value this version of the bindings has no name for.
-    Unknown(i32),
+    Unknown(i64),
 }
 
 impl FileMonitorEvent {
@@ -271,7 +271,7 @@ impl FileMonitorEvent {
             frida_sys::GFileMonitorEvent_G_FILE_MONITOR_EVENT_RENAMED => Self::Renamed,
             frida_sys::GFileMonitorEvent_G_FILE_MONITOR_EVENT_MOVED_IN => Self::MovedIn,
             frida_sys::GFileMonitorEvent_G_FILE_MONITOR_EVENT_MOVED_OUT => Self::MovedOut,
-            other => Self::Unknown(other as i32),
+            other => Self::Unknown(i64::from(other)),
         }
     }
 
@@ -294,6 +294,7 @@ impl FileMonitorEvent {
             Self::Renamed => frida_sys::GFileMonitorEvent_G_FILE_MONITOR_EVENT_RENAMED,
             Self::MovedIn => frida_sys::GFileMonitorEvent_G_FILE_MONITOR_EVENT_MOVED_IN,
             Self::MovedOut => frida_sys::GFileMonitorEvent_G_FILE_MONITOR_EVENT_MOVED_OUT,
+            // A value from `from_raw`, so it fits, unless made by hand, when it wraps.
             Self::Unknown(raw) => raw as frida_sys::GFileMonitorEvent,
         }
     }
