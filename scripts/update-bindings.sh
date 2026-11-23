@@ -19,9 +19,11 @@
 #   its repository under src/api/, at the tag of the same release.
 #
 # Everything downloaded is kept in the cache frida-build downloads devkits to
-# ($FRIDA_DEVKIT_CACHE, else ~/.cache/frida/devkits), named by the release, and is
-# used from there next time. So regenerating needs python3, curl, tar and, the
-# first time for a release, the network.
+# ($FRIDA_DEVKIT_CACHE, else frida/devkits under $LOCALAPPDATA, $XDG_CACHE_HOME or
+# ~/.cache), named by the release, and is used from there next time. So
+# regenerating needs Python 3.9 or later (python3, or python where that is its
+# name), curl, tar and, the first time for a release, the network. On Windows it
+# runs under Git Bash or MSYS2. $CURL names another curl to fetch with.
 #
 # If the frida-bindgen submodule is not checked out, this checks it out; without
 # git, run `git submodule update --init frida-bindgen` in a clone.
@@ -44,8 +46,13 @@ root=$(pwd)
 version=$(cat FRIDA_VERSION)
 releases="https://github.com/frida/frida/releases/download/$version"
 api="https://raw.githubusercontent.com/frida/frida-core/$version/src/api"
-cache="${FRIDA_DEVKIT_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/frida/devkits}"
+cache="${FRIDA_DEVKIT_CACHE:-${LOCALAPPDATA:-${XDG_CACHE_HOME:-$HOME/.cache}}/frida/devkits}"
+# On Windows those hold `C:\...` paths, and tar takes the `C:` of one for a remote host.
+if command -v cygpath >/dev/null; then
+  cache=$(cygpath -u "$cache")
+fi
 mkdir -p "$cache"
+curl="${CURL:-curl}"
 
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
@@ -57,7 +64,7 @@ download() {
     return
   fi
   echo "Fetching $url..." >&2
-  curl -fsSL -o "$path.part" "$url" || { rm -f "$path.part"; echo "update-bindings.sh: could not fetch $url" >&2; exit 1; }
+  "$curl" -fsSL -o "$path.part" "$url" || { rm -f "$path.part"; echo "update-bindings.sh: could not fetch $url" >&2; exit 1; }
   mv "$path.part" "$path"
 }
 
@@ -92,8 +99,28 @@ gobject_gir=$(api_gir GObject-2.0.gir)
 gio_gir=$(api_gir Gio-2.0.gir)
 
 if [ "$fetch_only" = 1 ]; then
-  printf '%s\n' "$unix_gir" "$windows_gir" "$glib_gir" "$gobject_gir" "$gio_gir"
+  # As paths a Windows program can open, where they are not that already.
+  for gir in "$unix_gir" "$windows_gir" "$glib_gir" "$gobject_gir" "$gio_gir"; do
+    if command -v cygpath >/dev/null; then
+      cygpath -m "$gir"
+    else
+      printf '%s\n' "$gir"
+    fi
+  done
   exit 0
+fi
+
+# On Windows `python3` may be the Microsoft Store's stub, which runs nothing.
+python=
+for candidate in python3 python; do
+  if "$candidate" -c 'import sys; sys.exit(sys.version_info < (3, 9))' >/dev/null 2>&1; then
+    python=$candidate
+    break
+  fi
+done
+if [ -z "$python" ]; then
+  echo "update-bindings.sh: needs Python 3.9 or later, as python3 or python" >&2
+  exit 1
 fi
 
 if [ ! -f frida-bindgen/frida_bindgen_core/__init__.py ]; then
@@ -110,7 +137,7 @@ elif command -v git >/dev/null && git submodule status frida-bindgen 2>/dev/null
     "repository pins; \`git submodule update frida-bindgen\` checks that out" >&2
 fi
 
-PYTHONPATH="$root/frida-bindgen${PYTHONPATH:+:$PYTHONPATH}" python3 -m frida_rust \
+PYTHONPATH="$root/frida-bindgen${PYTHONPATH:+:$PYTHONPATH}" "$python" -m frida_rust \
   --gir "$unix_gir" \
   --windows-gir "$windows_gir" \
   --glib-gir "$glib_gir" \
@@ -121,8 +148,10 @@ PYTHONPATH="$root/frida-bindgen${PYTHONPATH:+:$PYTHONPATH}" python3 -m frida_rus
 
 echo "Formatting and linting the regenerated binding (fmt, clippy --fix, clippy, update, upgrade)..." >&2
 cargo fmt --all
-cargo clippy --fix --allow-dirty -p frida --lib -- -D warnings
-cargo clippy -p frida --lib -- -D warnings
+# With auto-download, so that it is the devkit of FRIDA_VERSION the binding is checked
+# against, and not one of another release placed in frida-sys/ by hand.
+cargo clippy --fix --allow-dirty -p frida --lib --features auto-download -- -D warnings
+cargo clippy -p frida --lib --features auto-download -- -D warnings
 cargo update
 cargo upgrade
 

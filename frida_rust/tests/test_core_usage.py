@@ -58,7 +58,8 @@ def gir_paths() -> Optional[List[Path]]:
     """The five GIRs scripts/update-bindings.sh fetches, from the devkit cache, or None."""
     version = (ROOT / "FRIDA_VERSION").read_text().strip()
     cache = Path(os.environ.get("FRIDA_DEVKIT_CACHE") or
-                 Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache") / "frida" / "devkits")
+                 Path(os.environ.get("LOCALAPPDATA") or os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache")
+                 / "frida" / "devkits")
     names = ["linux-x86_64.gir", "windows-x86_64.gir", "GLib-2.0.gir", "GObject-2.0.gir", "Gio-2.0.gir"]
     paths = [cache / f"frida-core-{version}-{n}" for n in names]
     return paths if all(p.is_file() for p in paths) else None

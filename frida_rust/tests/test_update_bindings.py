@@ -19,8 +19,7 @@ VERSION = "1.2.3"
 
 # Logs each URL it is asked for, fails for one containing $FAKE_CURL_FAIL, and
 # otherwise writes a devkit holding a frida-core.gir, or a GIR naming the URL.
-FAKE_CURL = r'''#!%(python)s -I
-import io, os, sys, tarfile
+FAKE_CURL = r'''import io, os, sys, tarfile
 args = sys.argv[1:]
 out = args[args.index("-o") + 1]
 url = args[-1]
@@ -32,14 +31,14 @@ if fail and fail in url:
         f.write("partial")
     sys.exit(22)
 if url.endswith(".tar.xz"):
-    data = ("<gir of %%s/>" %% url.rsplit("/", 1)[-1]).encode()
+    data = ("<gir of %s/>" % url.rsplit("/", 1)[-1]).encode()
     with tarfile.open(out, "w:xz") as tar:
         info = tarfile.TarInfo("./frida-core.gir")
         info.size = len(data)
         tar.addfile(info, io.BytesIO(data))
 else:
     with open(out, "w") as f:
-        f.write("<gir from %%s/>" %% url)
+        f.write("<gir from %s/>" % url)
 '''
 
 
@@ -57,16 +56,21 @@ class UpdateBindingsFetchTest(unittest.TestCase):
         shutil.copy(SCRIPT, root / "scripts" / "update-bindings.sh")
         (root / "FRIDA_VERSION").write_text(VERSION + "\n")
         self.script = root / "scripts" / "update-bindings.sh"
-        bin_dir = self.tmp / "bin"
-        bin_dir.mkdir()
-        curl = bin_dir / "curl"
-        curl.write_text(FAKE_CURL % {"python": sys.executable})
+        # The script is told which curl to run, rather than finding this one on PATH: Git
+        # Bash puts its own directories, and so its own curl, before anything in PATH. And
+        # it is a shell script that runs Python, as a `#!` line cannot hold a path with a
+        # space in it. Forward slashes, as the shell reads a backslash as an escape.
+        fake = self.tmp / "fake_curl.py"
+        fake.write_text(FAKE_CURL)
+        curl = self.tmp / "curl"
+        with curl.open("w", newline="\n") as f:
+            f.write(f'#!/bin/sh\nexec "{Path(sys.executable).as_posix()}" -I "{fake.as_posix()}" "$@"\n')
         curl.chmod(0o755)
         self.cache = self.tmp / "cache"
         self.log = self.tmp / "curl.log"
         self.env = dict(
             os.environ,
-            PATH=f"{bin_dir}{os.pathsep}{os.environ.get('PATH', '')}",
+            CURL=curl.as_posix(),
             FRIDA_DEVKIT_CACHE=str(self.cache),
             FAKE_CURL_LOG=str(self.log),
         )
