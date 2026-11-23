@@ -1,0 +1,6 @@
+# Clippy's settings for every crate (a crate's own clippy.toml replaces this one).
+# Panics are for tests: production code returns errors (see [workspace.lints.clippy]).
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+allow-panic-in-tests = true
+allow-indexing-slicing-in-tests = true

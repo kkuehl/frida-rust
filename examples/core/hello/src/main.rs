@@ -1,10 +1,14 @@
 /* This example is in the public domain */
 
-use frida::Frida;
-use std::sync::LazyLock;
+//! The smallest program that uses Frida: nothing needs to be obtained first (frida-core is
+//! initialized on first use), and the device manager closes itself when it is dropped.
 
-static FRIDA: LazyLock<Frida> = LazyLock::new(|| unsafe { Frida::obtain() });
-
-fn main() {
+fn main() -> Result<(), frida::Error> {
     println!("Hello, world!");
+    println!("[*] Frida version: {}", frida::version());
+
+    let manager = frida::DeviceManager::new()?;
+    let device = manager.get_local_device()?;
+    println!("[*] Local device: {}", device.name());
+    Ok(())
 }

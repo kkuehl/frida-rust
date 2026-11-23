@@ -1,120 +1,88 @@
-use frida::{Frida, Message};
+use frida::{DeviceManager, ErrorKind, Message};
 use serde_json::json;
-use std::sync::LazyLock;
 
-static FRIDA: LazyLock<Frida> = LazyLock::new(|| unsafe { Frida::obtain() });
+const SCRIPT: &str = r#"
+    var globalVar = 0;
 
-fn main() {
-    let device_manager = frida::DeviceManager::obtain(&FRIDA);
-    let local_device = device_manager.get_local_device();
+    rpc.exports = {
+        increment: function() {
+            globalVar += 1;
+            console.log("globalVar incremented by 1");
+        },
 
-    if let Ok(device) = local_device {
-        println!("[*] Frida version: {}", frida::Frida::version());
-        println!("[*] Device name: {}", device.get_name());
+        nIncrement: function(n) {
+            globalVar += n;
+            console.log("globalVar incremented by " + n);
+        },
 
-        // Attach to the program
-        let session = device.attach(0).unwrap();
+        getValue: function() {
+            return globalVar;
+        },
 
-        let script_source = r#"
-            var globalVar = 0;
-
-            rpc.exports = {
-                increment: function() {
-                    globalVar += 1;
-                    console.log("globalVar incremented by 1");
-                },
-
-                nIncrement: function(n) {
-                    globalVar += n;
-                    console.log("globalVar incremented by " + n);
-                },
-
-                getValue: function() {
-                    return globalVar;
-                },
-                
-                sumVals: function(vals, b) {
-                    let sum = 0
-                    for (let i=0; i < vals.length; i++) {
-                        sum += vals[i]
-                    }
-                    return sum;
-                },
-                
-                bye: function(name) {
-                    console.log("Bye " + name);
-                }
-            };
-        "#;
-
-        let mut script_option = frida::ScriptOption::default();
-        let mut script = match session.create_script(script_source, &mut script_option) {
-            Ok(s) => s,
-            Err(err) => {
-                println!("{}", err);
-                return;
+        sumVals: function(vals, b) {
+            let sum = 0
+            for (let i=0; i < vals.length; i++) {
+                sum += vals[i]
             }
-        };
+            return sum;
+        },
 
-        let msg_handler = script.handle_message(Handler);
-        if let Err(err) = msg_handler {
-            panic!("{:?}", err);
+        bye: function(name) {
+            console.log("Bye " + name);
         }
+    };
+"#;
 
-        script.load().unwrap();
-        println!("[*] Script loaded.");
+fn main() -> Result<(), frida::Error> {
+    let manager = DeviceManager::new()?;
+    let device = manager.get_local_device()?;
+    println!("[*] Frida version: {}", frida::version());
+    println!("[*] Device name: {}", device.name());
 
-        let js_functions = script.list_exports().unwrap();
-        println!("{:?}", &js_functions);
+    // Attach to this very program.
+    let session = device.attach(0, None, None)?;
+    let script = session.create_script(SCRIPT, None, None)?;
+    let _handler = script.on_message(|message, _data| match message {
+        Message::Log(log) => println!("[*] {:?}: {:?}", log.level, log.payload),
+        other => println!("{other:?}"),
+    });
+    script.load(None)?;
+    println!("[*] Script loaded.");
 
-        // Example calling a function in JS and giving the function name from `list_exports`
-        // Expect a log message to be printed.
-        let _ = script.exports.call(&js_functions[0], None); // Increment
+    let exports = script.list_exports(None)?;
+    println!("{exports:?}");
 
-        // Example calling a JS function, giving the function name as &str, and a "Number" parameter.
-        let _ = script.exports.call("nIncrement", Some(json!([2])));
-
-        // // Example showing how to get the returned value.
-        let js_global_var = script.exports.call("getValue", None).unwrap().unwrap();
-        println!("js_global_var: {}", js_global_var);
-
-        // Example sending a String as parameter.
-        // Expect a log message to be printed.
-        let _ = script.exports.call("bye", Some(json!(["Potato"])));
-
-        // Example showing sending multiple arguments.
-        let total = script
-            .exports
-            .call("sumVals", Some(json!([[1, 2, 3, 4], true])))
-            .unwrap()
-            .unwrap();
-        println!("total: {}", total);
-
-        // Here I show how errors look like
-        if let Err(err_msg) = script
-            .exports
-            .call("NonExistentFunc", Some(json!([[1, 2, 3, 4], true])))
-        {
-            println!("This is an error from JS: {}", err_msg);
-        }
-
-        script.unload().unwrap();
-        println!("[*] Script unloaded");
-
-        session.detach().unwrap();
-        println!("[*] Session detached");
+    // Calling a function named by `list_exports`. Expect a log message to be printed.
+    if let Some(first) = exports.first() {
+        script.call_export(first, &[], None)?;
     }
 
+    // Calling a function with a "Number" argument.
+    script.call_export("nIncrement", &[json!(2)], None)?;
+
+    // Getting the returned value.
+    let value = script.call_export("getValue", &[], None)?;
+    println!("js_global_var: {value}");
+
+    // Sending a string as an argument. Expect a log message to be printed.
+    script.call_export("bye", &[json!("Potato")], None)?;
+
+    // Sending several arguments.
+    let total = script.call_export("sumVals", &[json!([1, 2, 3, 4]), json!(true)], None)?;
+    println!("total: {total}");
+
+    // What an error from JavaScript looks like.
+    match script.call_export("NonExistentFunc", &[json!([1, 2, 3, 4]), json!(true)], None) {
+        Err(error) if error.kind() == ErrorKind::Rpc => {
+            println!("This is an error from JS: {error}");
+        }
+        other => println!("Unexpected: {other:?}"),
+    }
+
+    script.unload(None)?;
+    println!("[*] Script unloaded");
+    session.detach(None)?;
+    println!("[*] Session detached");
     println!("Exiting...");
-}
-
-struct Handler;
-
-impl frida::ScriptHandler for Handler {
-    fn on_message(&mut self, message: Message, _data: Option<Vec<u8>>) {
-        match message {
-            frida::Message::Log(msg) => println!("[*] {:?}: {:?}", msg.level, msg.payload),
-            _ => println!("{:?}", message),
-        }
-    }
+    Ok(())
 }
