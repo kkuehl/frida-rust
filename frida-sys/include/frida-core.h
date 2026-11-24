@@ -5602,6 +5602,7 @@
 #define glib_gettext _frida_glib_gettext
 #define glib_has_dconf_access_in_sandbox _frida_glib_has_dconf_access_in_sandbox
 #define glib_init _frida_glib_init
+#define glib_initialized _frida_glib_initialized
 #define glib_interface_age _frida_glib_interface_age
 #define glib_major_version _frida_glib_major_version
 #define glib_mem_profiler_table _frida_glib_mem_profiler_table
@@ -67915,11 +67916,11 @@ G_END_DECLS
 
 #undef __JSON_GLIB_INSIDE__
 
-#define FRIDA_VERSION "17.27.4"
+#define FRIDA_VERSION "17.27.5"
 
 #define FRIDA_MAJOR_VERSION 17
 #define FRIDA_MINOR_VERSION 27
-#define FRIDA_MICRO_VERSION 4
+#define FRIDA_MICRO_VERSION 5
 #define FRIDA_NANO_VERSION 0
 
 #define FRIDA_CHECK_VERSION(maj, min, mic) \

@@ -70,8 +70,9 @@ table entry no longer matches anything.
 
 ### After a Frida release
 
-1. Bump `FRIDA_VERSION` (and the copy in `frida-sys`).
-2. Run `scripts/update-bindings.sh`. It downloads the Linux and Windows x86_64 core
+1. Bump `FRIDA_VERSION` and its copies in `frida-sys` and `frida-gum-sys`.
+2. Run `scripts/update-headers.sh` so the vendored headers match the release, then
+   `scripts/update-bindings.sh`. The latter downloads the Linux and Windows x86_64 core
    devkits of that release, and frida-core's GLib, GObject and Gio GIRs at its tag (or
    uses the ones in `~/.cache/frida/devkits`), checks out the `frida-bindgen` submodule
    if it is missing, and regenerates. Running it again changes nothing.

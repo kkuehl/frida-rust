@@ -178,7 +178,7 @@ pub fn deinit() -> Result<(), Error> {
     Ok(())
 }
 
-/// The version of the frida-core linked in, such as `17.27.4`.
+/// The version of the frida-core linked in, such as `17.27.5`.
 #[must_use]
 pub fn version() -> &'static str {
     // SAFETY: frida-core returns a static string; it needs no initialization.

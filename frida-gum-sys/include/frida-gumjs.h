@@ -4804,6 +4804,7 @@
 #define glib_gettext _frida_glib_gettext
 #define glib_has_dconf_access_in_sandbox _frida_glib_has_dconf_access_in_sandbox
 #define glib_init _frida_glib_init
+#define glib_initialized _frida_glib_initialized
 #define glib_interface_age _frida_glib_interface_age
 #define glib_major_version _frida_glib_major_version
 #define glib_mem_profiler_table _frida_glib_mem_profiler_table
@@ -84134,8 +84135,7 @@ struct _GumCModuleClass
   void (* add_symbol) (GumCModule * cm, const gchar * name,
       gconstpointer value);
   gboolean (* load) (GumCModule * cm, GumMemoryRange * range,
-      GString ** error_messages);
-  void (* link_post) (GumCModule * cm);
+      GError ** error);
   void (* unload) (GumCModule * cm, const GumMemoryRange * range);
   void (* enumerate_symbols) (GumCModule * cm, GumFoundCSymbolFunc func,
       gpointer user_data);
