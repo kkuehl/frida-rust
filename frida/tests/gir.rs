@@ -249,6 +249,39 @@ fn a_predicate_closure_finds_a_device_and_its_panic_comes_back() {
     assert_eq!(panic.downcast_ref::<&str>(), Some(&"from the predicate"));
 }
 
+/// A second `DeviceManager` after a script was loaded into this process
+/// through the first one.
+///
+/// **Frida 17.28.0 crashes here** (SIGSEGV, exit 139): the agent container
+/// thread of the first manager faults in `pthread_rwlock_rdlock` with an
+/// address that is no longer mapped, the first time the second manager's
+/// session machinery runs. 17.27.5 runs the same loop forty times without a
+/// fault, so this is a regression in the release, not in this crate: the
+/// minimal reproduction is a two-round loop, and it faults on the second round
+/// every time (measured 2026-11-27, macOS arm64).
+///
+/// Ignored so CI stays green while the fix is in frida-core; run it with
+/// `cargo test -p frida --features=auto-download --test gir -- --ignored
+/// a_second_device_manager` to see the fault.
+#[test]
+#[ignore = "frida 17.28.0 faults in the agent container on the second manager"]
+fn a_second_device_manager_after_attaching_to_this_process() {
+    let _serial = serial();
+    for round in 0..2 {
+        let manager = DeviceManager::new().unwrap();
+        let device = manager.get_local_device().unwrap();
+        let session = device.attach(0, None, None).unwrap();
+        let script = session.create_script("1;", None, None).unwrap();
+        script.load(None).unwrap();
+        drop(script);
+        drop(session);
+        drop(device);
+        drop(manager);
+        frida::gir::deinit().ok();
+        eprintln!("round {round} released");
+    }
+}
+
 #[test]
 fn a_device_that_does_not_appear_in_time_is_an_error() {
     let manager = DeviceManager::new().unwrap();

@@ -22,7 +22,7 @@ and runs:
     PYTHONPATH=frida-bindgen python3 -m frida_rust \
         --gir UNIX.gir --windows-gir WINDOWS.gir \
         --glib-gir GLib-2.0.gir --gobject-gir GObject-2.0.gir --gio-gir Gio-2.0.gir \
-        --output frida/src/gir/generated --frida-version 17.27.5
+        --output frida/src/gir/generated --frida-version 17.28.0
 
 `scripts/update-bindings.sh --fetch-only` prints the paths of the five inputs. The output
 is formatted with `rustfmt`, and committed: building the crates needs neither Python nor
