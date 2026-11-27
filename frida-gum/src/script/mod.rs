@@ -37,8 +37,11 @@ where
         callback: Option<F>,
     ) -> GumResult<Script<F>> {
         let scheduler = Scheduler::obtain(backend);
-        scheduler.disable_background_thread();
 
+        // NOTE: the GumScriptScheduler background thread is intentionally left
+        // enabled. It handles dispatching for module observers
+        // (Process.attachModuleObserver) and other async GumJS operations;
+        // disabling it prevents observer callbacks from ever firing.
         let context = scheduler.get_context();
         context.create_main_loop(true);
         context.set_as_thread_default();
@@ -58,5 +61,12 @@ where
 
     pub fn run_event_loop(&self) {
         self.context.run(false);
+    }
+
+    /// Block until the next GLib event is ready, process it, return.
+    /// Use in a loop for a proper event-driven keep-alive that supports
+    /// setTimeout, Process.attachModuleObserver, and Promise resolution.
+    pub fn pump_blocking(&self) -> bool {
+        self.context.iterate_blocking()
     }
 }

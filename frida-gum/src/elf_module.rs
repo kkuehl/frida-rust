@@ -141,6 +141,20 @@ impl ElfModule {
         }
     }
 
+    /// The name the module gives itself (`DT_SONAME`), if any.
+    pub fn soname(&self) -> Option<String> {
+        let ptr = unsafe { gum_sys::gum_elf_module_get_soname(self.inner) };
+        if ptr.is_null() {
+            None
+        } else {
+            Some(
+                unsafe { CStr::from_ptr(ptr) }
+                    .to_string_lossy()
+                    .into_owned(),
+            )
+        }
+    }
+
     /// File path this module was loaded from.
     pub fn source_path(&self) -> Option<String> {
         let ptr = unsafe { gum_sys::gum_elf_module_get_source_path(self.inner) };

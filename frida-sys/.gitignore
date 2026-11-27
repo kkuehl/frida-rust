@@ -2,3 +2,7 @@ frida-core.h
 libfrida-core.a
 frida-core.lib
 frida-core-example.c
+frida-core-example.sln
+frida-core-example.vcxproj
+frida-core-example.vcxproj.filters
+frida-core.gir

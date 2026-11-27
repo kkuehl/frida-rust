@@ -83,6 +83,9 @@ pub enum CpuContextAccess {
     CpuCcontextReadWrite,
 }
 
+// The registers are kept inline, though they are hundreds of bytes on some architectures: a
+// context is made each time a callback is given one, and boxing them would allocate each time.
+#[allow(clippy::large_enum_variant)]
 pub enum CpuContextType {
     ReadOnly(GumCpuContext),
     ReadWrite(*mut GumCpuContext),
@@ -115,9 +118,11 @@ impl CpuContext {
     }
 
     fn as_ptr(&self) -> *const GumCpuContext {
-        match self.cpu_context {
-            CpuContextType::ReadOnly(ctx) => &ctx as *const GumCpuContext,
-            CpuContextType::ReadWrite(ctx) => ctx as *const GumCpuContext,
+        // Matched by reference: by value, a read-only context's registers are copied into the
+        // match arm, and the pointer returned is to that copy, which is gone by then.
+        match &self.cpu_context {
+            CpuContextType::ReadOnly(ctx) => ctx as *const GumCpuContext,
+            CpuContextType::ReadWrite(ctx) => *ctx as *const GumCpuContext,
         }
     }
 
@@ -226,3 +231,37 @@ impl CpuContext {
 }
 
 REG_LIST!(gen_debug);
+
+#[cfg(all(test, any(target_arch = "aarch64", target_arch = "x86_64")))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn read_only_context_keeps_the_registers_it_was_made_from() {
+        // SAFETY: the registers are plain numbers, so all zeroes is a valid set of them.
+        let mut registers: GumCpuContext = unsafe { core::mem::zeroed() };
+        #[cfg(target_arch = "aarch64")]
+        {
+            registers.pc = 0x1234_5678;
+        }
+        #[cfg(target_arch = "x86_64")]
+        {
+            registers.rip = 0x1234_5678;
+        }
+
+        let context = CpuContext::from_raw(&mut registers, CpuContextAccess::CpuContextReadOnly);
+        // The context has a copy of its own, which a later change to the original leaves alone.
+        #[cfg(target_arch = "aarch64")]
+        {
+            registers.pc = 0;
+            assert_eq!(context.pc(), 0x1234_5678);
+            assert_eq!(registers.pc, 0);
+        }
+        #[cfg(target_arch = "x86_64")]
+        {
+            registers.rip = 0;
+            assert_eq!(context.rip(), 0x1234_5678);
+            assert_eq!(registers.rip, 0);
+        }
+    }
+}

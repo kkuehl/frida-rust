@@ -21,6 +21,16 @@ use alloc::{boxed::Box, vec::Vec};
 #[cfg(feature = "std")]
 use std::{boxed::Box, vec::Vec};
 
+/// The alignment to ask Gum for: `alignment`, or the page size where that is larger.
+///
+/// Gum works out how much to map as `size + (alignment - page_size)`, which wraps around for an
+/// alignment below the page size unless the size makes up the difference, and the allocation
+/// then fails. Memory is mapped in whole pages, so a smaller alignment asks for nothing more.
+pub(crate) fn page_alignment(alignment: usize) -> gum_sys::gsize {
+    let page_size = unsafe { gum_sys::gum_query_page_size() } as usize;
+    alignment.max(page_size) as gum_sys::gsize
+}
+
 /// Memory allocation and manipulation utilities.
 pub struct Memory;
 
@@ -73,8 +83,9 @@ impl Memory {
     /// Allocate memory with the specified size, alignment, and protection.
     ///
     /// `alignment` must be a power of two; pass `1` if no specific alignment
-    /// is required. Returns the address of the allocated memory, or `None`
-    /// if allocation fails.
+    /// is required. Memory is allocated in whole pages, so it is aligned to
+    /// at least the page size whatever is asked for. Returns the address of
+    /// the allocated memory, or `None` if allocation fails.
     pub fn allocate(
         size: usize,
         alignment: usize,
@@ -84,7 +95,7 @@ impl Memory {
             gum_sys::gum_memory_allocate(
                 core::ptr::null_mut(),
                 size as gum_sys::gsize,
-                alignment as gum_sys::gsize,
+                page_alignment(alignment),
                 protection as u32,
             )
         };
@@ -125,7 +136,7 @@ impl Memory {
             gum_sys::gum_memory_allocate_near(
                 &spec,
                 size as gum_sys::gsize,
-                alignment as gum_sys::gsize,
+                page_alignment(alignment),
                 protection as u32,
             )
         };
@@ -213,6 +224,24 @@ impl Memory {
                 None
             }
         }
+    }
+
+    /// Query the region of memory `address` is in: the range of pages around it that are mapped
+    /// alike, and their protection. `None` if nothing is mapped there.
+    pub fn query_region(address: NativePointer) -> Option<(MemoryRange, PageProtection)> {
+        let mut range = gum_sys::GumMemoryRange {
+            base_address: 0,
+            size: 0,
+        };
+        let mut prot: gum_sys::GumPageProtection = 0;
+        let found = unsafe { gum_sys::gum_memory_query_region(address.0, &mut range, &mut prot) };
+        if found == 0 {
+            return None;
+        }
+        Some((
+            MemoryRange::from_raw(&range),
+            num::FromPrimitive::from_u32(prot)?,
+        ))
     }
 
     /// Check if memory at the specified address is readable.
@@ -426,6 +455,36 @@ impl Memory {
 
             results
         }
+    }
+
+    /// Stop the CPU from checking memory tags on this thread, so that memory tagged for another
+    /// owner can be accessed, until [`Memory::resume_tag_checks`]. Does nothing unless the CPU
+    /// has the Memory Tagging Extension.
+    pub fn suspend_tag_checks() {
+        unsafe { gum_sys::gum_suspend_tag_checks() };
+    }
+
+    /// Undo [`Memory::suspend_tag_checks`].
+    pub fn resume_tag_checks() {
+        unsafe { gum_sys::gum_resume_tag_checks() };
+    }
+
+    /// Route Gum's own memory management through `hooks`, or back to the system with `None`.
+    /// The hooks are copied.
+    ///
+    /// Gum calls `allocate` where it would allocate executable memory, `protect` where it would
+    /// change the protection of pages, and `patch_code` where it would write to code. A hook
+    /// left as `None` leaves that operation to the system.
+    ///
+    /// # Safety
+    ///
+    /// The hooks must do what Gum would have: return usable memory, apply the protection, and
+    /// write the code. They and their `user_data` must stay valid until the hooks are replaced,
+    /// and no other thread may be using Gum while they are.
+    pub unsafe fn set_hooks(hooks: Option<&gum_sys::GumMemoryHooks>) {
+        unsafe {
+            gum_sys::gum_memory_set_hooks(hooks.map_or(core::ptr::null(), core::ptr::from_ref))
+        };
     }
 
     /// Check if writable pages can be remapped.

@@ -1,6 +1,6 @@
 [package]
 name = "inject_lib_file"
-edition = "2021"
+edition = "2024"
 authors = ["Ricardo J Marques Montilla / Xoffio"]
 publish = false
 
@@ -9,4 +9,4 @@ name = "inject_example"
 crate-type = ["cdylib"]
 
 [dependencies]
-frida = { path = "../../../frida" }
+frida = { path = "../../../frida", features = ["auto-download"] }

@@ -49,6 +49,10 @@
 #![deny(warnings)]
 #![allow(clippy::needless_doctest_main)]
 #![allow(clippy::missing_safety_doc)]
+// Gum's constants and integer types are not the same Rust type on every target: a C enum is
+// `i32` on Windows and `u32` elsewhere, and a `gsize` is as wide as a pointer. A cast that one
+// target needs is therefore redundant on another, where this lint would have it removed.
+#![allow(clippy::unnecessary_cast)]
 
 #[cfg(not(feature = "std"))]
 extern crate alloc;
@@ -80,8 +84,26 @@ pub use module::*;
 
 pub mod elf_module;
 
+mod pe_module;
+pub use pe_module::*;
+
 mod module_map;
 pub use module_map::*;
+
+mod macho_module;
+pub use macho_module::*;
+
+mod process_memory;
+pub use process_memory::*;
+
+mod module_resolver;
+pub use module_resolver::*;
+
+mod mapper;
+pub use mapper::*;
+
+mod cmodule;
+pub use cmodule::*;
 
 mod process;
 pub use process::*;
@@ -100,10 +122,50 @@ pub use memory_access_monitor::*;
 mod memory;
 pub use memory::Memory;
 
+mod kernel;
+pub use kernel::*;
+
 mod glib_compat;
+
+mod enumeration;
+
+mod gobject;
 
 mod memory_range;
 pub use memory_range::*;
+
+mod api_resolver;
+pub use api_resolver::*;
+
+mod exceptor;
+pub use exceptor::*;
+
+mod code_allocator;
+pub use code_allocator::*;
+
+mod code_segment;
+pub use code_segment::*;
+
+mod symbol_util;
+pub use symbol_util::*;
+
+mod cloak;
+pub use cloak::*;
+
+mod query;
+pub use query::*;
+
+mod control_flow_graph;
+pub use control_flow_graph::*;
+
+mod unwind_broker;
+pub use unwind_broker::*;
+
+mod tls;
+pub use tls::*;
+
+mod registry;
+pub use registry::*;
 
 mod range_details;
 pub use range_details::*;

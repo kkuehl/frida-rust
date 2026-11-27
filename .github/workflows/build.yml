@@ -165,10 +165,51 @@ jobs:
           profile: minimal
           toolchain: nightly
           override: true
+      - name: Download FRIDA
+        run: |
+          export FRIDA_VERSION=$(cat FRIDA_VERSION)
+          cd frida-gum-sys && mkdir -p include && wget https://github.com/frida/frida/releases/download/$FRIDA_VERSION/frida-gum-devkit-$FRIDA_VERSION-linux-x86_64.tar.xz -O frida-gum.tar.xz && tar xJvf frida-gum.tar.xz -C include
+          cd ..
+          cd frida-sys && mkdir -p include && wget https://github.com/frida/frida/releases/download/$FRIDA_VERSION/frida-core-devkit-$FRIDA_VERSION-linux-x86_64.tar.xz -O frida-core.tar.xz && tar xJvf frida-core.tar.xz -C include
       - name: Build Gum documentation
         run: |
           cd frida-gum
           cargo rustdoc --features "event-sink invocation-listener"
+      - name: Build Frida documentation
+        run: |
+          cd frida
+          cargo rustdoc
+  headers:
+    name: Committed headers match FRIDA_VERSION
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check the FRIDA_VERSION files agree
+        run: |
+          version=$(cat FRIDA_VERSION)
+          for file in FRIDA_VERSION frida-gum-sys/FRIDA_VERSION frida-sys/FRIDA_VERSION; do
+            if [ "$(cat "$file")" != "$version" ]; then
+              echo "::error file=$file::$file is $(cat "$file"), but FRIDA_VERSION is $version"
+              exit 1
+            fi
+          done
+      - name: Compare the committed headers with the pinned devkits
+        run: |
+          set -euo pipefail
+          version=$(cat FRIDA_VERSION)
+          base="https://github.com/frida/frida/releases/download/$version"
+          work=$(mktemp -d)
+          curl -fsSL -o "$work/frida-gumjs.tar.xz" "$base/frida-gumjs-devkit-$version-linux-x86_64.tar.xz"
+          curl -fsSL -o "$work/frida-core.tar.xz" "$base/frida-core-devkit-$version-linux-x86_64.tar.xz"
+          tar xJf "$work/frida-gumjs.tar.xz" -C "$work"
+          tar xJf "$work/frida-core.tar.xz" -C "$work"
+          status=0
+          diff -u frida-gum-sys/include/frida-gumjs.h "$work/frida-gumjs.h" || status=1
+          diff -u frida-sys/include/frida-core.h "$work/frida-core.h" || status=1
+          if [ "$status" -ne 0 ]; then
+            echo "::error::The committed headers differ from the Frida $version devkits; run scripts/update-headers.sh and commit the result."
+            exit 1
+          fi
   check-nostd:
     name: Check no_std
     runs-on: ubuntu-latest

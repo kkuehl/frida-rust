@@ -1,55 +1,48 @@
-use frida::{DeviceManager, Frida, ScriptHandler, ScriptOption, ScriptRuntime};
-use std::sync::LazyLock;
+use frida::{DeviceManager, Message, ScriptOptions, ScriptRuntime};
+use std::sync::mpsc;
+use std::time::Duration;
 
-static FRIDA: LazyLock<Frida> = LazyLock::new(|| unsafe { Frida::obtain() });
-
-fn main() {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = std::env::args().collect();
 
     if args.len() < 2 {
         println!("Usage: {} <PID>", args[0]);
-        return;
+        return Ok(());
     }
 
-    let device_manager = DeviceManager::obtain(&FRIDA);
-    let pid: u32 = args[1].parse().unwrap();
+    let manager = DeviceManager::new()?;
+    let pid: u32 = args[1].parse()?;
 
-    if let Some(device) = device_manager.enumerate_all_devices().first() {
-        println!("[*] First device: {}", device.get_name());
+    if let Some(device) = manager.enumerate_devices(None)?.into_iter().next() {
+        println!("[*] First device: {}", device.name());
 
-        let session = device.attach(pid).unwrap();
+        let session = device.attach(pid, None, None)?;
+        println!("[*] Attached");
 
-        if !session.is_detached() {
-            println!("[*] Attached");
+        let options = ScriptOptions::new()
+            .name("example")
+            .runtime(ScriptRuntime::Qjs);
+        let script = session.create_script("console.log('Log test');", Some(&options), None)?;
 
-            let mut script_option = ScriptOption::new()
-                .set_name("example")
-                .set_runtime(ScriptRuntime::QJS);
-            let mut script = session
-                .create_script("console.log('Log test');", &mut script_option)
-                .unwrap();
+        let (sender, messages) = mpsc::channel();
+        let _handler = script.on_message(move |message, _data| {
+            let _ = sender.send(message);
+        });
 
-            script.handle_message(Handler).unwrap();
-
-            script.load().unwrap();
-            println!("[*] Script loaded");
-
-            script.unload().unwrap();
-            println!("[*] Script unloaded");
-
-            session.detach().unwrap();
-            println!("[*] Session detached");
+        script.load(None)?;
+        println!("[*] Script loaded");
+        while let Ok(message) = messages.recv_timeout(Duration::from_millis(500)) {
+            match message {
+                Message::Log(log) => println!("[*] {:?}: {:?}", log.level, log.payload),
+                other => println!("{other:?}"),
+            }
         }
-    };
-}
 
-struct Handler;
+        script.unload(None)?;
+        println!("[*] Script unloaded");
 
-impl ScriptHandler for Handler {
-    fn on_message(&mut self, message: frida::Message, _data: Option<Vec<u8>>) {
-        match message {
-            frida::Message::Log(msg) => println!("[*] {:?}: {:?}", msg.level, msg.payload),
-            _ => println!("{:?}", message),
-        }
+        session.detach(None)?;
+        println!("[*] Session detached");
     }
+    Ok(())
 }

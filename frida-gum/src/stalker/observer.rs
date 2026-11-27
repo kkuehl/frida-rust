@@ -23,10 +23,8 @@ unsafe extern "C" fn notify_backpatch<S: StalkerObserver>(
     backpatch: *const gum_sys::GumBackpatch,
     size: gum_sys::gsize,
 ) {
-    unsafe {
-        let stalker_observer: &mut S = &mut *(user_data as *mut S);
-        stalker_observer.notify_backpatch(backpatch, size);
-    }
+    let stalker_observer: &mut S = unsafe { &mut *(user_data as *mut S) };
+    stalker_observer.notify_backpatch(backpatch, size);
 }
 
 unsafe extern "C" fn switch_callback<S: StalkerObserver>(
@@ -36,10 +34,10 @@ unsafe extern "C" fn switch_callback<S: StalkerObserver>(
     from_insn: gum_sys::gpointer,
     target: *mut gum_sys::gpointer,
 ) {
-    unsafe {
-        let stalker_observer: &mut S = &mut *(user_data as *mut S);
-        stalker_observer.switch_callback(from_address, start_address, from_insn, &mut *target);
-    }
+    let stalker_observer: &mut S = unsafe { &mut *(user_data as *mut S) };
+    stalker_observer.switch_callback(from_address, start_address, from_insn, unsafe {
+        &mut *target
+    });
 }
 
 pub(crate) fn stalker_observer_transform<S: StalkerObserver>(

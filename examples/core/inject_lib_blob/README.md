@@ -2,7 +2,8 @@
 # Enter the example directory
 cd examples/core/inject_lib_blob/
 
-# Build the library and the executable
+# Build the library and the executable. The executable embeds the library, which is
+# libinject_example.so, libinject_example.dylib on macOS, or inject_example.dll on Windows.
 cargo build --release --lib
 cargo build --release
 

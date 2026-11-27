@@ -1,3 +1,6 @@
+// This module predates the workspace's lints and is superseded by `frida::gir`.
+#![allow(clippy::unwrap_used)]
+
 use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 
@@ -18,6 +21,9 @@ pub enum Variant {
 
     /// Array of Maps
     MapList(Vec<HashMap<String, Variant>>),
+
+    /// Array of strings (e.g. the `argv` process parameter added in Frida 17.13).
+    StringList(Vec<String>),
 
     /// GVariant type signatures we don't decode (e.g. "ay" byte arrays
     /// returned by frida for process icons). The string holds the original
@@ -52,6 +58,7 @@ impl Variant {
                 "t" => Self::Int64(frida_sys::g_variant_get_uint64(variant) as i64),
                 "a{sv}" => Self::Map(sv_array_to_map(variant)),
                 "aa{sv}" => Self::MapList(asv_array_to_maplist(variant)),
+                "as" => Self::StringList(string_array_to_vec(variant)),
                 // Don't panic on unknown signatures; preserve the sig so callers
                 // can `Variant::Unsupported(sig)` and decide. Frida on Windows
                 // packs process icons as "ay" which we have no use for.
@@ -61,6 +68,7 @@ impl Variant {
     }
 
     /// Get the string value of a variant, if any
+    #[must_use]
     pub fn get_string(&self) -> Option<&str> {
         let Self::String(s) = self else {
             return None;
@@ -69,26 +77,39 @@ impl Variant {
     }
 
     /// Get the integer value of a variant, if any
+    #[must_use]
     pub fn get_int(&self) -> Option<i64> {
         let Self::Int64(i) = self else { return None };
         Some(*i)
     }
 
     /// Get the boolean value of a variant, if any
+    #[must_use]
     pub fn get_bool(&self) -> Option<bool> {
         let Self::Boolean(b) = self else { return None };
         Some(*b)
     }
 
     /// Get the mapping value of a variant, if any
+    #[must_use]
     pub fn get_map(&self) -> Option<&HashMap<String, Variant>> {
         let Self::Map(m) = self else { return None };
         Some(m)
     }
 
     /// Get the mapping list value of a variant, if any
+    #[must_use]
     pub fn get_maplist(&self) -> Option<&[HashMap<String, Variant>]> {
         let Self::MapList(l) = self else {
+            return None;
+        };
+        Some(l)
+    }
+
+    /// Get the string-list value of a variant, if any (e.g. `argv`).
+    #[must_use]
+    pub fn get_string_list(&self) -> Option<&[String]> {
+        let Self::StringList(l) = self else {
             return None;
         };
         Some(l)
@@ -103,6 +124,7 @@ impl std::fmt::Debug for Variant {
             Self::Boolean(b) => b.fmt(f),
             Self::Map(m) => m.fmt(f),
             Self::MapList(l) => l.fmt(f),
+            Self::StringList(l) => l.fmt(f),
             Self::Unsupported(sig) => write!(f, "<unsupported variant: {sig}>"),
         }
     }
@@ -130,6 +152,21 @@ unsafe fn sv_array_to_map(variant: *mut frida_sys::GVariant) -> HashMap<String, 
             let key = CStr::from_ptr(key.cast()).to_string_lossy().to_string();
             let value = Variant::from_ptr(value);
             ret.insert(key, value);
+        }
+        ret
+    }
+}
+
+unsafe fn string_array_to_vec(variant: *mut frida_sys::GVariant) -> Vec<String> {
+    unsafe {
+        let mut ret = Vec::new();
+        let mut iter: frida_sys::GVariantIter = std::mem::MaybeUninit::zeroed().assume_init();
+        let mut value: *const i8 = std::ptr::null();
+
+        frida_sys::g_variant_iter_init(&mut iter, variant);
+        let s = CString::new("s").unwrap();
+        while frida_sys::g_variant_iter_loop(&mut iter, s.as_ptr(), &mut value) != 0 {
+            ret.push(CStr::from_ptr(value.cast()).to_string_lossy().into_owned());
         }
         ret
     }

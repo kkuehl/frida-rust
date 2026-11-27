@@ -1,7 +1,4 @@
-use frida::{DeviceManager, Frida, Message, ScriptHandler, ScriptOption, ScriptRuntime};
-use std::sync::LazyLock;
-
-static FRIDA: LazyLock<Frida> = LazyLock::new(|| unsafe { Frida::obtain() });
+use frida::{DeviceManager, ScriptOptions, ScriptRuntime};
 
 const BYTECODE_PATH: &str = "compiled.bin";
 
@@ -9,61 +6,48 @@ const SCRIPT_SOURCE: &str = r#"
     console.log("Hello from precompiled bytecode! pid=" + Process.id);
 "#;
 
-fn main() {
-    let device_manager = DeviceManager::obtain(&FRIDA);
-    let device = device_manager
-        .get_local_device()
-        .expect("local device unavailable");
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let manager = DeviceManager::new()?;
+    let device = manager.get_local_device()?;
 
-    println!("[*] Frida version: {}", Frida::version());
-    println!("[*] Device: {}", device.get_name());
+    println!("[*] Frida version: {}", frida::version());
+    println!("[*] Device: {}", device.name());
 
-    let session = device.attach(0).expect("attach to self failed");
+    let session = device.attach(0, None, None)?;
     println!("[*] Attached to self (pid=0)");
 
     // 1. Compile JS -> bytecode with the QJS runtime.
     //    Bytecode is runtime-specific: load with the same runtime.
-    let mut compile_opts = ScriptOption::new()
-        .set_name("compile_script_example")
-        .set_runtime(ScriptRuntime::QJS);
-    let bytecode = session
-        .compile_script(SCRIPT_SOURCE, &mut compile_opts)
-        .expect("compile_script failed");
+    let compile_opts = ScriptOptions::new()
+        .name("compile_script_example")
+        .runtime(ScriptRuntime::Qjs);
+    let bytecode = session.compile_script(SCRIPT_SOURCE, Some(&compile_opts), None)?;
     println!("[*] Compiled {} bytes of bytecode", bytecode.len());
 
     // 2. Demonstrate the ship-as-artifact workflow: write to disk, read back.
-    std::fs::write(BYTECODE_PATH, &bytecode).expect("write bytecode failed");
+    std::fs::write(BYTECODE_PATH, &bytecode)?;
     println!("[*] Wrote bytecode to {}", BYTECODE_PATH);
-    let loaded = std::fs::read(BYTECODE_PATH).expect("read bytecode failed");
+    let loaded = std::fs::read(BYTECODE_PATH)?;
     println!("[*] Read {} bytes back from disk", loaded.len());
 
     // 3. Load the bytecode through create_script_from_bytes.
-    let mut load_opts = ScriptOption::new()
-        .set_name("compile_script_example")
-        .set_runtime(ScriptRuntime::QJS);
-    let mut script = session
-        .create_script_from_bytes(&loaded, &mut load_opts)
-        .expect("create_script_from_bytes failed");
+    let load_opts = ScriptOptions::new()
+        .name("compile_script_example")
+        .runtime(ScriptRuntime::Qjs);
+    let script = session.create_script_from_bytes(&loaded, Some(&load_opts), None)?;
 
-    script
-        .handle_message(Handler)
-        .expect("handle_message failed");
-    script.load().expect("script load failed");
+    let _handler = script.on_message(|message, _data| {
+        println!("- {message:?}");
+    });
+    script.load(None)?;
     println!("[*] Script loaded from bytecode");
 
-    script.unload().expect("script unload failed");
+    script.unload(None)?;
     println!("[*] Script unloaded");
 
-    session.detach().expect("session detach failed");
+    session.detach(None)?;
     println!("[*] Session detached");
 
     let _ = std::fs::remove_file(BYTECODE_PATH);
-}
-
-struct Handler;
-
-impl ScriptHandler for Handler {
-    fn on_message(&mut self, message: Message, _data: Option<Vec<u8>>) {
-        println!("- {:?}", message);
-    }
+    Ok(())
 }

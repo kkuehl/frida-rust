@@ -14,13 +14,17 @@ auto-download = ["frida-sys/auto-download"]
 frida-sys = { path = "../frida-sys", version = "0.17.2" }
 thiserror = "2"
 serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0.140"
+serde_json = "1.0.154"
 
 [dev-dependencies]
 lazy_static = "1"
+tempfile = "3"
 
 [badges]
 maintenance = { status = "experimental" }
 
 [package.metadata.docs.rs]
 features = []
+
+[lints]
+workspace = true

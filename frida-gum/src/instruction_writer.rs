@@ -19,6 +19,11 @@ mod x86_64;
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 pub use x86_64::*;
 
+#[cfg(any(target_arch = "mips", target_arch = "mips64"))]
+mod mips;
+#[cfg(any(target_arch = "mips", target_arch = "mips64"))]
+pub use mips::*;
+
 use frida_gum_sys::Insn;
 
 pub enum Argument {

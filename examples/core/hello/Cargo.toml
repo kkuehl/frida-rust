@@ -2,9 +2,9 @@
 name = "hello"
 version = "0.1.0"
 authors = ["Keegan Saunders <keegan@undefinedbehaviour.org>"]
-edition = "2018"
+edition = "2024"
 license = "wxWindows"
 publish = false
 
 [dependencies]
-frida = { path = "../../../frida" }
+frida = { path = "../../../frida", features = ["auto-download"] }

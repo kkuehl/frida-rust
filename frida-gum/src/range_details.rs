@@ -5,11 +5,6 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
-#![cfg_attr(
-    any(target_arch = "x86_64", target_arch = "x86"),
-    allow(clippy::unnecessary_cast)
-)]
-
 extern crate alloc;
 use {
     crate::MemoryRange,
@@ -34,6 +29,8 @@ pub enum PageProtection {
     Execute = gum_sys::_GumPageProtection_GUM_PAGE_EXECUTE as u32,
     ReadWrite = gum_sys::_GumPageProtection_GUM_PAGE_READ as u32
         | gum_sys::_GumPageProtection_GUM_PAGE_WRITE as u32,
+    WriteExecute = gum_sys::_GumPageProtection_GUM_PAGE_WRITE as u32
+        | gum_sys::_GumPageProtection_GUM_PAGE_EXECUTE as u32,
     ReadExecute = gum_sys::_GumPageProtection_GUM_PAGE_READ as u32
         | gum_sys::_GumPageProtection_GUM_PAGE_EXECUTE as u32,
     ReadWriteExecute = gum_sys::_GumPageProtection_GUM_PAGE_READ as u32
@@ -49,6 +46,7 @@ impl fmt::Display for PageProtection {
             PageProtection::Write => write!(fmt, "-w-"),
             PageProtection::Execute => write!(fmt, "--e"),
             PageProtection::ReadWrite => write!(fmt, "rw-"),
+            PageProtection::WriteExecute => write!(fmt, "-we"),
             PageProtection::ReadExecute => write!(fmt, "r-e"),
             PageProtection::ReadWriteExecute => write!(fmt, "rwe"),
         }
@@ -92,8 +90,16 @@ impl FileMapping<'_> {
 
     /// The size of the mapping.
     pub fn size(&self) -> usize {
-        self.size as usize
+        self.size
     }
+}
+
+/// Whether `address` is one of the `size` addresses starting at `base`.
+///
+/// The end of the range is never computed, as it does not fit when the range reaches the end of
+/// the address space, and this is called from a C callback, where an overflow would abort.
+fn range_contains(base: u64, size: u64, address: u64) -> bool {
+    address >= base && address - base < size
 }
 
 struct SaveRangeDetailsByAddressContext<'a> {
@@ -108,9 +114,7 @@ unsafe extern "C" fn save_range_details_by_address(
     unsafe {
         let context = &mut *(context as *mut SaveRangeDetailsByAddressContext);
         let range = (*details).range;
-        let start = (*range).base_address as u64;
-        let end = start + (*range).size as u64;
-        if start <= context.address && context.address < end {
+        if range_contains((*range).base_address, (*range).size as u64, context.address) {
             context.details = Some(RangeDetails::from_raw(details));
             return 0;
         }
@@ -146,7 +150,11 @@ impl<'a> RangeDetails<'a> {
         unsafe {
             Self {
                 range: MemoryRange::from_raw((*range_details).range),
-                protection: num::FromPrimitive::from_u32((*range_details).protection).unwrap(),
+                // Frida only reports combinations of R/W/X (0..=7); fall back to
+                // NoAccess rather than panicking inside this FFI callback if an
+                // unexpected value is ever encountered.
+                protection: num::FromPrimitive::from_u32((*range_details).protection)
+                    .unwrap_or(PageProtection::NoAccess),
                 file: FileMapping::from_raw((*range_details).file),
                 phantom: PhantomData,
             }
@@ -198,5 +206,36 @@ impl<'a> RangeDetails<'a> {
     /// The associated file mapping, if present.
     pub fn file_mapping(&self) -> Option<FileMapping<'_>> {
         self.file.clone()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn range_contains_its_addresses_and_no_others() {
+        assert!(range_contains(0x1000, 0x10, 0x1000));
+        assert!(range_contains(0x1000, 0x10, 0x100f));
+        assert!(!range_contains(0x1000, 0x10, 0x1010));
+        assert!(!range_contains(0x1000, 0x10, 0xfff));
+        assert!(!range_contains(0x1000, 0, 0x1000));
+    }
+
+    #[test]
+    fn range_reaching_the_top_of_the_address_space_contains_its_addresses() {
+        // The end of these ranges does not fit in 64 bits, so it must not be worked out.
+        assert!(range_contains(u64::MAX - 0xf, 0x10, u64::MAX));
+        assert!(range_contains(u64::MAX - 0xf, 0x20, u64::MAX));
+        assert!(!range_contains(u64::MAX - 0xf, 0x10, u64::MAX - 0x10));
+    }
+
+    #[test]
+    fn every_protection_has_a_variant() {
+        // Frida reports any combination of read, write and execute.
+        for raw in 0..=PageProtection::ReadWriteExecute as u32 {
+            let protection: Option<PageProtection> = num::FromPrimitive::from_u32(raw);
+            assert!(protection.is_some_and(|protection| protection as u32 == raw));
+        }
     }
 }

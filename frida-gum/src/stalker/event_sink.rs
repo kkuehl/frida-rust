@@ -4,11 +4,6 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
-#![cfg_attr(
-    any(target_arch = "x86_64", target_arch = "x86"),
-    allow(clippy::unnecessary_cast)
-)]
-
 use {
     crate::NativePointer, core::ffi::c_void, frida_gum_sys as gum_sys,
     gum_sys::_GumEvent as GumEvent,
@@ -107,43 +102,33 @@ pub trait EventSink {
 }
 
 unsafe extern "C" fn call_start<S: EventSink>(user_data: *mut c_void) {
-    unsafe {
-        let event_sink: &mut S = &mut *(user_data as *mut S);
-        event_sink.start();
-    }
+    let event_sink: &mut S = unsafe { &mut *(user_data as *mut S) };
+    event_sink.start();
 }
 
 unsafe extern "C" fn call_process<S: EventSink>(
     user_data: *mut c_void,
     event: *const frida_gum_sys::GumEvent,
 ) {
-    unsafe {
-        let event_sink: &mut S = &mut *(user_data as *mut S);
-        event_sink.process(&(*event).into());
-    }
+    let event_sink: &mut S = unsafe { &mut *(user_data as *mut S) };
+    event_sink.process(&unsafe { *event }.into());
 }
 
 unsafe extern "C" fn call_flush<S: EventSink>(user_data: *mut c_void) {
-    unsafe {
-        let event_sink: &mut S = &mut *(user_data as *mut S);
-        event_sink.flush();
-    }
+    let event_sink: &mut S = unsafe { &mut *(user_data as *mut S) };
+    event_sink.flush();
 }
 
 unsafe extern "C" fn call_stop<S: EventSink>(user_data: *mut c_void) {
-    unsafe {
-        let event_sink: &mut S = &mut *(user_data as *mut S);
-        event_sink.stop();
-    }
+    let event_sink: &mut S = unsafe { &mut *(user_data as *mut S) };
+    event_sink.stop();
 }
 
 unsafe extern "C" fn call_query_mask<S: EventSink>(
     user_data: *mut c_void,
 ) -> frida_gum_sys::GumEventType {
-    unsafe {
-        let event_sink: &mut S = &mut *(user_data as *mut S);
-        event_sink.query_mask() as u32
-    }
+    let event_sink: &mut S = unsafe { &mut *(user_data as *mut S) };
+    event_sink.query_mask() as u32
 }
 
 pub(crate) fn event_sink_transform<S: EventSink>(

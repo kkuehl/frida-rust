@@ -16,7 +16,7 @@ impl ProbeListener for OpenProbeListener {
 #[ctor]
 fn init() {
     static CELL: OnceLock<Gum> = OnceLock::new();
-    let gum = CELL.get_or_init(|| Gum::obtain());
+    let gum = CELL.get_or_init(Gum::obtain);
     let mut interceptor = Interceptor::obtain(gum);
     let module = Module::load(gum, "libc.so.6");
     let open = module.find_export_by_name("open").unwrap();

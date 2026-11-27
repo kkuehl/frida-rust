@@ -1,21 +1,19 @@
-use frida::DeviceType;
+use frida::{DeviceManager, DeviceType};
 
-fn main() {
-    let frida = unsafe { frida::Frida::obtain() };
-    let device_manager = frida::DeviceManager::obtain(&frida);
+fn main() -> Result<(), frida::Error> {
+    let manager = DeviceManager::new()?;
 
     // get the first usb device (assuming there is one attached)
-    let device = device_manager.get_device_by_type(DeviceType::USB).unwrap();
-    assert_eq!(device.get_type(), DeviceType::USB);
+    let device = manager.get_device_by_type(DeviceType::Usb, None, None)?;
     println!(
         "found {} with type: {}",
-        device.get_name(),
-        device.get_type()
+        device.name(),
+        device.device_type()
     );
 
     // get the device id and use it to obtain a the device by the id
-    let device_id = device.get_id();
-    let device = device_manager.get_device_by_id(device_id).unwrap();
-    assert_eq!(device.get_id(), device_id);
-    println!("found {} with id: {}", device.get_name(), device.get_id());
+    let device_id = device.id();
+    let device = manager.get_device_by_id(&device_id, None, None)?;
+    println!("found {} with id: {}", device.name(), device.id());
+    Ok(())
 }

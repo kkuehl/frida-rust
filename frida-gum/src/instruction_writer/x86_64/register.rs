@@ -1,5 +1,3 @@
-#![allow(clippy::unnecessary_cast)]
-
 use frida_gum_sys as gum_sys;
 
 #[derive(FromPrimitive, PartialEq, Eq, Clone, Copy, Debug)]
@@ -59,4 +57,45 @@ pub enum X86Register {
     Xip = gum_sys::_GumX86Reg_GUM_X86_XIP as u32,
 
     None = gum_sys::_GumX86Reg_GUM_X86_NONE as u32,
+}
+
+impl X86Register {
+    /// The register capstone identifies as `reg`, or `None` if Gum has no name for it.
+    pub fn from_capstone(reg: gum_sys::x86_reg) -> Option<Self> {
+        let reg = unsafe { gum_sys::gum_x86_reg_from_capstone(reg) };
+        <Self as num::FromPrimitive>::from_u32(reg as u32).filter(|reg| *reg != Self::None)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn names_the_registers_capstone_identifies() {
+        assert_eq!(
+            X86Register::from_capstone(gum_sys::x86_reg_X86_REG_RAX),
+            Some(X86Register::Rax)
+        );
+        assert_eq!(
+            X86Register::from_capstone(gum_sys::x86_reg_X86_REG_R10D),
+            Some(X86Register::R10d)
+        );
+        assert_eq!(
+            X86Register::from_capstone(gum_sys::x86_reg_X86_REG_RIP),
+            Some(X86Register::Rip)
+        );
+    }
+
+    #[test]
+    fn has_no_name_for_what_is_not_a_general_register() {
+        assert_eq!(
+            X86Register::from_capstone(gum_sys::x86_reg_X86_REG_INVALID),
+            None
+        );
+        assert_eq!(
+            X86Register::from_capstone(gum_sys::x86_reg_X86_REG_XMM0),
+            None
+        );
+    }
 }
